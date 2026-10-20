@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Home - {{ config.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="text-center">
+  <h1 class="h3">Welcome to {{ config.SITE_NAME }}</h1>
+  <p class="text-muted mb-0">Hello, {{ user.first_name or user.email }}!</p>
+</div>
+{% endblock %}

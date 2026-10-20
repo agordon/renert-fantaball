@@ -1,0 +1,14 @@
+# Local configuration (copy from .env.example)
+.env
+
+# Database and its backups
+instance/
+
+__pycache__/
+*~
+*.pid
+*.log
+\#*#
+.DS_Store
+logs/
+run/
