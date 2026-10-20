@@ -8,7 +8,10 @@ from root import app, db
 
 # Import all models, so that db.create_all() knows about their tables
 from models.people import Person  # noqa: F401
+import models.fantasy  # noqa: F401
 from models.init_data import init_data
+from fantaball.seed import load_world, seed_demo_league
+from fantaball.providers import DemoProvider
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -42,12 +45,22 @@ JWTAuthManager(app)
 
 # Importing the view modules registers their routes (@app.route) with the app
 import views.index  # noqa: E402, F401
+import views.api  # noqa: E402, F401  (FantaBall REST API, /api/...)
 
 # Create any missing tables (existing tables are not modified), then (development only) add any missing initial rows
 with app.app_context():
     db.create_all()
     if app.config["ENVIRONMENT"] == "development":
         init_data()
+    # FantaBall: the simulated sports world is needed in every environment (idempotent);
+    # the pre-played demo league is development-only, like init_data().
+    for _sport in ("nba", "nhl"):
+        load_world(DemoProvider(_sport))
+    if app.config["ENVIRONMENT"] == "development":
+        seed_demo_league(
+            app.config.get("JWT_AUTH_DUMMY_USER_EMAIL", "john.doe@example.com"),
+            f"{app.config.get('JWT_AUTH_DUMMY_USER_FIRST_NAME', 'John')} {app.config.get('JWT_AUTH_DUMMY_USER_LAST_NAME', 'Doe')}",
+        )
 
 
 if __name__ == "__main__":
