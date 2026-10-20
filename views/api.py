@@ -315,6 +315,14 @@ def transactions(me, league_id):
                  related_team=names.get(t.related_team_id)) for t in rows]
 
 
+@api("/leagues/<int:league_id>/what-if/lineup", methods=("POST",))
+def what_if_lineup(me, league_id):
+    from fantaball import whatif
+    lg, team = league_svc.membership(me, league_id)
+    d = body()
+    return whatif.lineup_swap(lg, team, need_int(d, "day"), need_int(d, "in_id"), need_int(d, "out_id"))
+
+
 # ----------------------------------------------------------------------------- dashboard
 @api("/leagues/<int:league_id>/dashboard")
 def dashboard(me, league_id):
