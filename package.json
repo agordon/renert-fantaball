@@ -1,0 +1,11 @@
+{
+  "name": "fantaball",
+  "private": true,
+  "description": "FantaBall: run backend + frontend together",
+  "scripts": {
+    "setup": "node scripts/run.mjs setup",
+    "dev": "node scripts/run.mjs dev",
+    "prod": "node scripts/run.mjs prod",
+    "test": "node scripts/run.mjs test"
+  }
+}

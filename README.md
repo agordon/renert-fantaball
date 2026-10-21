@@ -3,7 +3,16 @@
 Fantasy sports platform prototype (NBA head-to-head points first). Flask API + Next.js UI.
 **All players, schedules and stats are simulated demo data** - nothing is real NBA data.
 
-## Run locally
+## Quick start (one command)
+```
+npm run setup   # once: venv, Python deps, .env, frontend deps
+npm run dev     # API (5010) + app (3000) together, with auto-reload
+npm run prod    # builds the frontend, then runs both without debug
+npm run test    # backend tests + frontend build
+```
+(`pnpm dev` / `pnpm prod` work the same if you have pnpm.) Open http://localhost:3000.
+
+## Run locally (manual)
 ```
 python -m venv .venv && .venv\Scripts\activate        # Windows (use source .venv/bin/activate on Linux/macOS)
 pip install -r requirements.txt
