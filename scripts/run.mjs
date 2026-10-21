@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,12 +23,30 @@ function setup() {
   run(npm, ["install"], { cwd: frontend });
 }
 
-function serve(extraEnv, frontendArgs) {
+const portBusy = (port) => new Promise((res) => {
+  const s = net.connect(port, "127.0.0.1");
+  s.on("connect", () => { s.destroy(); res(true); });
+  s.on("error", () => res(false));
+});
+
+async function serve(extraEnv, frontendArgs) {
+  for (const port of [5010, 3000]) {
+    if (await portBusy(port)) {
+      console.error(`
+Port ${port} is already in use by another program (maybe an old dev server). Close it and run again.`);
+      process.exit(1);
+    }
+  }
   const procs = [
     spawn(python, ["-m", "flask", "--app", "app", "run", "--host", "127.0.0.1", "--port", "5010"], { cwd: root, stdio: "inherit", env: { ...process.env, ...extraEnv } }),
     spawn(npm, ["run", ...frontendArgs], { cwd: frontend, stdio: "inherit", shell: win }),
   ];
-  console.log("\nFantaBall: API http://127.0.0.1:5010  ·  App http://localhost:3000  (Ctrl+C to stop)\n");
+  console.log("\nFantaBall app: http://localhost:3000  (the API on :5010 has no pages - always use :3000)  Ctrl+C to stop\n");
+  setTimeout(() => {
+    const url = "http://localhost:3000";
+    if (win) spawn("cmd", ["/c", "start", "", url], { stdio: "ignore" });
+    else spawn(process.platform === "darwin" ? "open" : "xdg-open", [url], { stdio: "ignore" }).on("error", () => {});
+  }, 6000);
   const stop = () => procs.forEach((p) => { try { win ? spawnSync("taskkill", ["/pid", String(p.pid), "/T", "/F"]) : p.kill(); } catch {} });
   process.on("SIGINT", () => { stop(); process.exit(0); });
   process.on("exit", stop);
@@ -35,11 +54,11 @@ function serve(extraEnv, frontendArgs) {
 }
 
 if (mode === "setup") setup();
-else if (mode === "dev") serve({ FLASK_DEBUG: "true" }, ["dev"]);
+else if (mode === "dev") await serve({ FLASK_DEBUG: "true" }, ["dev"]);
 else if (mode === "prod") {
   const b = run(npm, ["run", "build"], { cwd: frontend });
   if (b.status) process.exit(b.status);
-  serve({ FLASK_DEBUG: "false" }, ["start"]);
+  await serve({ FLASK_DEBUG: "false" }, ["start"]);
 } else if (mode === "test") {
   const r = run(python, ["-m", "pytest", "tests", "-q"], { cwd: root });
   const t = run(npm, ["run", "build"], { cwd: frontend });
