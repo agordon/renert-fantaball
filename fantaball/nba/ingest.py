@@ -114,6 +114,9 @@ def sync_teams_and_players(provider: NBADataProvider, sport: Sport, counts: Coun
     now = utcnow()
     existing = {t.provider_id: t for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == sport.id, ProTeam.provider == provider.name))}
     for rec in provider.teams():
+        if not rec.abbr:
+            counts.skipped += 1                 # a team we cannot identify by abbreviation is never stored
+            continue
         values = dict(abbr=rec.abbr, city=rec.city, name=rec.name, conference=rec.conference, division=rec.division)
         team = existing.get(rec.provider_id)
         if team is None:
@@ -151,6 +154,11 @@ def sync_teams_and_players(provider: NBADataProvider, sport: Sport, counts: Coun
     return f"{len(team_by_pid)} teams, {len(seen)} players"
 
 
+def _positions_authoritative(rec) -> bool:
+    """Roster-style sources (BALLDONTLIE) state a player's position; box-score discovery (Highlightly) only fills gaps."""
+    return bool(rec.meta and rec.meta.get("roster"))
+
+
 def _upsert_player(sport, provider_name, rec, team, athletes, counts, now):
     name = f"{rec.first_name} {rec.last_name}".strip()
     values = dict(name=name, first_name=rec.first_name, last_name=rec.last_name, positions=map_position(rec.position), provider_position=rec.position,
@@ -160,6 +168,10 @@ def _upsert_player(sport, provider_name, rec, team, athletes, counts, now):
         for keep in ("positions", "provider_position", "height", "weight", "meta"):
             if not values[keep]:
                 values.pop(keep)
+        if a.positions and not _positions_authoritative(rec):
+            # a game lineup lists the slot a player started in (G one night, F the next): once known, his position is kept
+            values.pop("positions", None)
+            values.pop("provider_position", None)
     if a is None:
         a = Athlete(sport_id=sport.id, provider=provider_name, provider_id=rec.provider_id, rank=1_000_000, age=None, synced_at=now, **values)
         db.session.add(a)
@@ -199,6 +211,14 @@ def recompute_ranks(sport: Sport):
     db.session.commit()
 
 
+def _delete_game(game: ProGame):
+    from models.fantasy import PlayerFantasyScore
+    stat_ids = db.select(GameStat.id).where(GameStat.pro_game_id == game.id)
+    db.session.execute(db.delete(PlayerFantasyScore).where(PlayerFantasyScore.game_stat_id.in_(stat_ids)))
+    db.session.execute(db.delete(GameStat).where(GameStat.pro_game_id == game.id))
+    db.session.delete(game)
+
+
 def sync_games(provider: NBADataProvider, sport: Sport, counts: Counts, *, season: int | None = None, start: date | None = None, end: date | None = None) -> str:
     team_by_pid = {t.provider_id: t for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == sport.id, ProTeam.provider == provider.name))}
     if not team_by_pid:
@@ -221,8 +241,16 @@ def sync_games(provider: NBADataProvider, sport: Sport, counts: Counts, *, seaso
     for rec in records:
         home, away = team_by_pid.get(rec.home_team_id), team_by_pid.get(rec.away_team_id)
         day = timeline.day_of(sport, rec.game_date)
-        if home is None or away is None or day is None or day < 1:
-            counts.skipped += 1                 # unknown team (e.g. exhibition) or before the regular season
+        if day is not None and day < 1:
+            old = existing.pop(rec.provider_id, None)          # preseason: not part of the fantasy season - drop it if an earlier anchor stored it
+            if old is not None:
+                _delete_game(old)
+                counts.updated += 1
+            else:
+                counts.skipped += 1
+            continue
+        if home is None or away is None or day is None:
+            counts.skipped += 1                 # unknown team (an exhibition opponent) or unknown season start
             continue
         values = dict(home_team_id=home.id, away_team_id=away.id, day=day, game_date=rec.game_date, starts_at=rec.starts_at, season=rec.season,
                       postseason=rec.postseason, status=rec.status, home_score=rec.home_score, away_score=rec.away_score)
@@ -253,7 +281,7 @@ def _stat_values(rec: StatRecord) -> tuple[dict, dict]:
 def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates: list[date] | None = None, only_missing: bool = True) -> str:
     """Import box scores for FINAL games. Default: only games whose stats were never imported (the minimum number of requests).
     With explicit `dates` (corrections) the dates are re-fetched and rows are updated when the provider's numbers changed."""
-    q = db.select(ProGame).where(ProGame.sport_id == sport.id, ProGame.provider == provider.name, ProGame.status == "final")
+    q = db.select(ProGame).where(ProGame.sport_id == sport.id, ProGame.provider == provider.name, ProGame.status == "final", ProGame.day >= 1)
     if dates:
         q = q.where(ProGame.game_date.in_(dates))
     elif only_missing:
@@ -299,7 +327,7 @@ def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates
                 if rec.player and rec.player.team_provider_id in team_by_pid:
                     team = team_by_pid[rec.player.team_provider_id]
                     # create the player, or refresh him when a team change or a newly learned position needs recording
-                    if athlete is None or athlete.pro_team_id != team.id or (rec.player.position and map_position(rec.player.position) != athlete.positions):
+                    if athlete is None or athlete.pro_team_id != team.id or (rec.player.position and not athlete.positions):
                         athlete = _upsert_player(sport, provider.name, rec.player, team, athletes, counts, now)
                         db.session.flush()
                 if athlete is None:
@@ -423,8 +451,10 @@ def job_stats(provider, *, dates=None, triggered_by="cli"):
 
 
 def _stats_then_scores(provider, sport, counts, dates):
-    marker = sync_stats(provider, sport, counts, dates=dates, only_missing=dates is None)
-    _after_stats(sport, counts)
+    try:
+        marker = sync_stats(provider, sport, counts, dates=dates, only_missing=dates is None)
+    finally:
+        _after_stats(sport, counts)         # batches committed before a failure (quota, outage) are scored even so
     return marker
 
 
@@ -442,8 +472,10 @@ def job_corrections(provider, *, days=None, triggered_by="cli"):
     sport = ensure_sport(provider)
 
     def fn(counts):
-        marker = sync_corrections(provider, sport, counts, days=days)
-        _after_stats(sport, counts)
+        try:
+            marker = sync_corrections(provider, sport, counts, days=days)
+        finally:
+            _after_stats(sport, counts)
         return marker
     return run_job(provider, "corrections", fn, {"days": days}, triggered_by)
 
@@ -501,7 +533,8 @@ def job_daily(provider, triggered_by="schedule"):
         else:
             step("schedule", lambda: sync_games(provider, sport, counts, start=today - timedelta(days=back), end=today + timedelta(days=ahead)))
         step("stats", lambda: sync_stats(provider, sport, counts))
-        step("corrections", lambda: sync_corrections(provider, sport, counts))
+        if not counts.blocked and not any(e.startswith("stats") for e in counts.errors):
+            step("corrections", lambda: sync_corrections(provider, sport, counts))
         step("scores", lambda: (_after_stats(sport, counts), "scores and leagues updated")[1])
         return f"daily sync {today}"
     return run_job(provider, "daily", fn, triggered_by=triggered_by)

@@ -27,6 +27,12 @@ PAGE = 100
 MAX_PAGES = 60
 ET_ZONE = "America/New_York"
 
+# FINDING (real response, 2026-10-27): GET /teams?league=NBA returns 54 entries labelled "NBA" - the 30 franchises PLUS international
+# clubs, All-Star teams and exhibition opponents (NZ Breakers, Real Madrid, "Team LeBron" ...), some with an empty abbreviation.
+# Real franchises are recognised by abbreviation; the aliases are the provider's spellings (NY, GS, SA, UTAH, WSH, NO ...).
+NBA_FRANCHISES = frozenset("""ATL BOS BKN BRK CHA CHO CHI CLE DAL DEN DET GS GSW HOU IND LAC LAL MEM MIA MIL MIN NO NOP NY NYK OKC ORL PHI PHX PHO POR SAC
+SA SAS TOR UTA UTAH WAS WSH""".split())
+
 STATUS_MAP = {
     "finished": "final", "scheduled": "scheduled", "in progress": "in_progress", "end period": "in_progress", "half time": "in_progress",
     "postponed": "postponed", "cancelled": "cancelled", "canceled": "cancelled", "abandoned": "cancelled", "suspended": "postponed",
@@ -155,7 +161,9 @@ def parse_box_score(match_id: int, body, positions: dict | None = None) -> list[
     for item in items:
         team = (item or {}).get("team", item) or {}
         team_id = int(team["id"]) if team.get("id") is not None else None
-        for entry in team.get("boxScores") or []:
+        # REAL response (2026-10-27): [{"team": {id, logo, name}, "boxScores": [...]}, ...] - boxScores NEXT TO team.
+        # The OpenAPI spec nests it inside team; both layouts are accepted.
+        for entry in (item or {}).get("boxScores") or team.get("boxScores") or []:
             player = entry.get("player") or {}
             if player.get("id") is None:
                 continue
@@ -234,7 +242,7 @@ class HighlightlyProvider(NBADataProvider):
         rows = body.get("data") if isinstance(body, dict) else body
         if not isinstance(rows, list):
             raise ProviderBadResponse("Unexpected response shape from teams")
-        return [parse_team(t) for t in rows if (t.get("league") or "NBA") == "NBA"]
+        return [parse_team(t) for t in rows if t.get("league") == "NBA" and str(t.get("abbreviation") or "").upper() in NBA_FRANCHISES]
 
     def players(self, team_ids: Iterable[int]) -> Iterator[PlayerRecord]:
         return iter(())             # see module docstring: rosters cannot be listed; players arrive with their box scores

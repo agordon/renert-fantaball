@@ -65,7 +65,7 @@ def test_parse_team_player_game_stat():
     assert (team.provider_id, team.abbr, team.conference) == (5, "BOS", "East")
 
     player = parse_player({"id": 9, "first_name": "A", "last_name": "B", "position": "G-F", "height": "6-5", "weight": "205", "college": "X", "team": {"id": 5}})
-    assert player.position == "G-F" and player.team_provider_id == 5 and player.meta == {"college": "X"}
+    assert player.position == "G-F" and player.team_provider_id == 5 and player.meta == {"college": "X", "roster": True}
     nobody = parse_player({"id": 10, "first_name": "C", "last_name": "D", "position": "", "team": None})
     assert nobody.position is None and nobody.team_provider_id is None            # missing stays missing
 

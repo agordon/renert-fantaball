@@ -22,7 +22,7 @@ def team(i, abbr, city, name):
     return {"id": i, "name": name, "displayName": f"{city} {name}", "abbreviation": abbr, "league": "NBA", "logo": "x"}
 
 
-TEAMS = [team(1, "AAA", "Alpha City", "Aces"), team(2, "BBB", "Bravo Bay", "Bears"), team(3, "CCC", "Charlie Creek", "Comets"), team(4, "DDD", "Delta Dunes", "Dragons")]
+TEAMS = [team(1, "MIA", "Miami", "Heat"), team(2, "BOS", "Boston", "Celtics"), team(3, "DEN", "Denver", "Nuggets"), team(4, "LAL", "Los Angeles", "Lakers")]
 
 
 def match(mid, home, away, iso, state, season=2026):
@@ -41,7 +41,13 @@ FULL = dict(minutes=30, pts=20, fgm=8, fga=15, fg3m=2, fg3a=5, ftm=2, fta=2, reb
 
 
 def box(match_id, home_lines, away_lines, h=1, a=2):
-    return [{"team": {"id": h, "name": "home", "boxScores": home_lines}}, {"team": {"id": a, "name": "away", "boxScores": away_lines}}]
+    """The REAL response layout: boxScores is a sibling of team."""
+    return [{"team": {"id": h, "name": "home"}, "boxScores": home_lines}, {"team": {"id": a, "name": "away"}, "boxScores": away_lines}]
+
+
+def box_spec_layout(home_lines, h=1):
+    """The layout written in the OpenAPI spec: boxScores nested inside team."""
+    return [{"team": {"id": h, "name": "home", "boxScores": home_lines}}]
 
 
 def lineup_player(pid, name, pos, starter=False):
@@ -116,6 +122,29 @@ def test_parse_box_score_maps_documented_stat_names_and_never_invents_zeros():
     assert recs[200].pts == 18 and recs[200].team_provider_id == 2                          # numeric strings are accepted
 
 
+def test_both_documented_and_real_box_score_layouts_parse_the_same():
+    lines = [line(100, "Ann Lee", **FULL)]
+    assert parse_box_score(5, box_spec_layout(lines)) == parse_box_score(5, box(5, lines, [])[:1])
+
+
+FIXTURES = __import__("os").path.join(__import__("os").path.dirname(__file__), "fixtures")
+
+
+def test_a_real_recorded_game_parses_with_positions():
+    """highlightly_*_real.json are untouched responses recorded from the live API (match 1547001, 2026-10-20)."""
+    box_body = json.load(open(FIXTURES + "/highlightly_box_score_real.json", encoding="utf-8"))
+    lineup_body = json.load(open(FIXTURES + "/highlightly_lineups_real.json", encoding="utf-8"))
+    recs = parse_box_score(1547001, box_body, parse_lineups(lineup_body))
+    assert 14 <= len(recs) <= 30 and {r.team_provider_id for r in recs} >= {37}               # two teams, San Antonio among them
+    wemby = next(r for r in recs if r.player.last_name == "Wembanyama")
+    assert (wemby.pts, wemby.reb, wemby.ast, wemby.stl, wemby.blk, wemby.tov, wemby.fg3m, wemby.minutes) == (12, 13, 3, 1, 6, 4, 0, 34.0)
+    assert wemby.player.position == "C" and wemby.team_provider_id == 37
+    assert all(r.pts is not None and r.reb is not None and r.player.position in ("G", "F", "C") for r in recs)   # every line is scoreable and has a position
+    from fantaball.scoring import default_rules, score_decimal
+    stats = {("min" if k == "minutes" else k): getattr(wemby, k) for k in ("minutes", "pts", "reb", "ast", "stl", "blk", "tov", "fg3m")}
+    assert float(score_decimal(stats, default_rules("nba"))) == 12 + 13 * 1.2 + 3 * 1.5 + 1 * 3 + 6 * 3 - 4 + 0     # 12+15.6+4.5+3+18-4 = 49.1
+
+
 def test_players_who_did_not_play_have_no_stat_line():
     body = box(5, [line(100, "Ann Lee", **FULL), line(102, "Bench Warmer", minutes=0, pts=0, reb=0, ast=0), {"player": {"id": 103, "name": "No Stats"}, "statistics": []}], [])
     assert [r.player_provider_id for r in parse_box_score(5, body)] == [100]
@@ -136,11 +165,32 @@ def test_missing_key_message_names_the_variable():
         HighlightlyProvider(None)
 
 
-def test_teams_are_filtered_to_the_nba_and_players_are_not_listed():
-    p = provider({"teams": [TEAMS[0], {**TEAMS[1], "league": "NCAA"}]})
-    assert [t.abbr for t in p.teams()] == ["AAA"]
-    assert list(p.players([1, 2])) == [] and p.http.paths() == ["teams"]                      # no request wasted on /players
+REAL_TEAMS_RESPONSE = [   # shape and content taken from the real GET /teams?league=NBA answer (54 rows; a representative subset)
+    {"id": 1, "name": "Heat", "displayName": "Miami Heat", "abbreviation": "MIA", "league": "NBA", "logo": "x"},
+    {"id": 26, "name": "Knicks", "displayName": "New York Knicks", "abbreviation": "NY", "league": "NBA", "logo": "x"},
+    {"id": 43, "name": "Warriors", "displayName": "Golden State Warriors", "abbreviation": "GS", "league": "NBA", "logo": "x"},
+    {"id": 45, "name": "Jazz", "displayName": "Utah Jazz", "abbreviation": "UTAH", "league": "NBA", "logo": "x"},
+    {"id": 8158, "name": "Breakers", "displayName": "NEWZEALAND Breakers", "abbreviation": "NZL", "league": "NBA", "logo": "x"},
+    {"id": 8139, "name": "Real Madrid", "displayName": "Real Madrid", "abbreviation": "REAL", "league": "NBA", "logo": "x"},
+    {"id": 11023, "name": "Ulm", "displayName": "Ulm", "abbreviation": "", "league": "NBA", "logo": "x"},
+    {"id": 1116925, "name": "Stars", "displayName": "Stars", "abbreviation": "", "league": "NBA", "logo": "x"},
+    {"id": 398768, "name": "Pnx", "displayName": "Melbourne Pnx", "abbreviation": "", "league": "NBA", "logo": "x"},
+]
+
+
+def test_teams_keep_only_real_franchises_and_players_are_not_listed():
+    p = provider({"teams": REAL_TEAMS_RESPONSE})
+    got = p.teams()
+    assert [t.abbr for t in got] == ["MIA", "NY", "GS", "UTAH"]                                # international / exhibition / blank-abbreviation entries are dropped
+    assert [t.city for t in got] == ["Miami", "New York", "Golden State", "Utah"]
+    assert list(p.players([1, 2])) == [] and p.http.paths() == ["teams"]                       # no request wasted on /players
     assert p.http.calls[0][1] == {"league": "NBA"}
+
+
+def test_every_real_nba_abbreviation_variant_is_recognised():
+    from fantaball.nba.highlightly import NBA_FRANCHISES
+    real_30 = "MIA BOS DEN LAL ATL ORL DET NY CHI HOU LAC POR SAC CHA TOR CLE IND SA OKC MIL DAL MIN MEM GS UTAH PHX BKN WSH NO PHI".split()
+    assert len(real_30) == 30 and set(real_30) <= NBA_FRANCHISES
 
 
 def test_matches_are_paged_by_offset_until_total_count():
@@ -233,7 +283,7 @@ def league_routes(extra_unknown=False):
     lineups = {gid: {"home": {"lineup": [lineup_player(p, f"Hoop Player{p}", ["PG", "C"][i]) for i, p in enumerate(p_ids[h])]},
                      "away": {"lineup": [lineup_player(p, f"Hoop Player{p}", ["SG", "F"][i]) for i, p in enumerate(p_ids[a])]}} for gid, h, a in ((10, 1, 2), (11, 3, 4))}
     if extra_unknown:                                   # a player the lineup does not list: stats arrive, position stays unknown
-        boxes[10][0]["team"]["boxScores"].append(line(150, "Mystery Man", **FULL))
+        boxes[10][0]["boxScores"].append(line(150, "Mystery Man", **FULL))
     matches = lambda q: {"data": games if q.get("season") or q.get("date") else [], "pagination": {"totalCount": len(games), "offset": 0, "limit": 100}}
     return {"teams": TEAMS, "matches": matches, "box-score": lambda q: None, "lineups": lambda q: None}, boxes, lineups
 
@@ -342,3 +392,43 @@ def test_budget_exhaustion_is_reported_without_corrupting_data(world):
     p.http.get_json = real_get
     assert ingest.job_stats(p).status == "success"
     assert db.session.scalar(db.select(db.func.count(GameStat.id)).where(GameStat.source == "highlightly")) == 8
+
+
+def test_partial_import_still_scores_what_was_committed(world):
+    """The real first import hit the daily quota half-way: everything committed before that must be scored anyway."""
+    p = hl_provider()
+    p.stats_chunk = 1                                                # one game per commit batch
+    ingest.job_teams_players(p)
+    ingest.job_schedule(p, season=2026)
+    real_get, calls = p.http.get_json, {"n": 0}
+
+    def limited(path, params=None):
+        if path.startswith("box-score/"):
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise ProviderRateLimited("The provider's daily request quota is used up.")
+        return real_get(path, params)
+    p.http.get_json = limited
+    run = ingest.job_stats(p)
+    assert run.status in ("partial", "failed") and "quota" in run.error
+    assert db.session.scalar(db.select(db.func.count(GameStat.id)).where(GameStat.source == "highlightly")) == 4          # game 1 only
+    assert db.session.scalar(db.select(db.func.count(PlayerFantasyScore.id)).join(Athlete, Athlete.id == PlayerFantasyScore.athlete_id).where(Athlete.provider == "highlightly")) == 4
+    p.http.get_json = real_get
+    assert ingest.job_stats(p).status == "success"                    # tomorrow: the rest arrives, nothing is duplicated
+    assert db.session.scalar(db.select(db.func.count(GameStat.id)).where(GameStat.source == "highlightly")) == 8
+
+
+def test_a_known_position_is_not_flipped_by_a_later_lineup(world):
+    """Lineups show the slot a player STARTED in (G one night, F the next): the first known position is kept, with no churn."""
+    routes, boxes, lineups = league_routes()
+    p = HighlightlyProvider(None, client=RoutedHttp(routes, boxes, lineups), today=lambda: TODAY)
+    p._season_offset = 0
+    ingest.job_teams_players(p)
+    ingest.job_schedule(p, season=2026)
+    ingest.job_stats(p)
+    player = db.session.scalar(db.select(Athlete).where(Athlete.provider_id == 100, Athlete.provider == "highlightly"))
+    assert player.positions == "PG"
+    lineups[10]["home"]["lineup"][0]["positionAbbreviation"] = "F"          # the same player listed as a forward in a later re-import
+    ingest.job_stats(p, dates=[date(2026, 10, 26)])
+    db.session.refresh(player)
+    assert player.positions == "PG"

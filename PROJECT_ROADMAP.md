@@ -24,11 +24,12 @@ lenient scoring. Kept (legitimate configuration, not data): sport definitions in
 the draft-room position filter, computer-manager team names. Scoring labels/defaults and stat labels now come from the API.
 
 ## Needs your action / not verified
-- **Add your Highlightly key** (`HIGHLIGHTLY_API_KEY` in `.env`), then `npm run sync`. No real box score has been fetched yet: the integration
-  follows the provider's OpenAPI spec and is tested offline, so expect small adjustments after the first real import.
-- Assumptions to confirm with a key: stat names match the documented box-score names; `positionAbbreviation` values map via
-  `ingest.POSITION_MAP`; `/matches?season=` numbering (handled by a one-time probe); whether preseason games are listed (set
-  `FLASK_NBA_SEASON_START` if so); final scores are not imported (the spec's score arrays are ambiguous) - fantasy points do not need them.
+- **First real import done (2026-10-27):** 30 teams, 296 regular-season games (Oct 20 onward), 397 real players, ~950 box-score lines from 42 of
+  the 52 finished games; the daily quota (100) ran out, the rest arrives on the next run (`npm run sync:daily`). Real-API quirks that were
+  found and fixed are listed in the README ("Verified against the real API").
+- Still unconfirmed: behaviour at the playoffs (no flag in the API), the quota reset time (assumed UTC midnight), correction behaviour
+  (nothing has been corrected yet), and the schedule beyond late November (the Monday refresh will show it). Final scores are not imported
+  (the spec's score arrays are ambiguous) - fantasy points do not need them.
 - Playoff games are not distinguished (the API has no flag); injuries are not imported (every player shows healthy).
 
 ## Not done

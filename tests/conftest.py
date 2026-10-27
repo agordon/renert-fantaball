@@ -20,6 +20,9 @@ os.environ["FLASK_DEBUG"] = "false"
 os.environ["FLASK_SYNC_INLINE"] = "true"        # admin sync runs synchronously in tests
 os.environ["FLASK_ADMIN_EMAILS"] = '["admin@example.com"]'
 os.environ["FLASK_CORS_ORIGINS"] = '["http://localhost:3000"]'
+# Never let a developer's real .env (keys, season settings) leak into the tests: empty values count as "not set"
+for _name in ("FLASK_NBA_SEASON_START", "FLASK_NBA_SEASON", "HIGHLIGHTLY_API_KEY", "BALLDONTLIE_API_KEY", "HIGHLIGHTLY_DAILY_QUOTA", "FLASK_NBA_PROVIDER"):
+    os.environ[_name] = ""
 
 
 def make_jwt(email, name="Test User"):

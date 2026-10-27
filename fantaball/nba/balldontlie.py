@@ -55,6 +55,7 @@ def parse_team(d: dict) -> TeamRecord:
 def parse_player(d: dict) -> PlayerRecord:
     team = d.get("team") or {}
     meta = {k: d.get(k) for k in ("jersey_number", "college", "country", "draft_year", "draft_round", "draft_number") if d.get(k) not in (None, "")}
+    meta["roster"] = True            # this source states positions itself (unlike lineup-derived ones)
     return PlayerRecord(provider_id=int(d["id"]), first_name=d.get("first_name") or "", last_name=d.get("last_name") or "",
                         position=d.get("position") or None, height=d.get("height") or None,
                         weight=str(d["weight"]) if d.get("weight") not in (None, "") else None,

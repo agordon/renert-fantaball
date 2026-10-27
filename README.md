@@ -37,8 +37,14 @@ header behaviour was confirmed against the live service (no header -> HTTP 403; 
 4. **Data Admin** (emails in `FLASK_ADMIN_EMAILS`) shows status, freshness, failures and has buttons for every job.
 
 **Request budget** (daily job, ~10 games/day): ~9 date queries (yesterday to next week) + ~10 box scores + a few lineups +
-~10 for the one-day corrections re-check = ~30-40 of the 100. Mondays add ~13 for a full-season refresh. If the provider also lists
-preseason games, set `FLASK_NBA_SEASON_START=YYYY-MM-DD` (the Monday of regular-season week 1) before the first sync.
+~10 for the one-day corrections re-check = ~30-40 of the 100. Mondays add ~5 for a full-season refresh.
+
+**Verified against the real API (2026-10-27, first import):** `/teams?league=NBA` returns 54 entries (the 30 franchises plus international
+clubs / All-Star teams, some without an abbreviation) - only the 30 franchises are kept; box scores come as `[{team, boxScores}]`
+(`boxScores` beside `team`); lineup positions are single letters G / F / C (mapped to PG,SG / SF,PF / C); the schedule feed lists
+**preseason** games from Oct 3, so `FLASK_NBA_SEASON_START` must be the Monday before the regular-season opener (2026-10-19 for 2026-27;
+already set in your `.env`). Games before day 1 are removed automatically. The feed currently lists games through late November;
+the Monday refresh extends it. 52 box scores + lineups for the first week needed ~100 requests, i.e. one full day of quota.
 
 **Alternative provider:** `FLASK_NBA_PROVIDER=balldontlie` (needs `BALLDONTLIE_API_KEY`; its free plan has no player stats).
 

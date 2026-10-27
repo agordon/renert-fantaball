@@ -170,3 +170,18 @@ def test_provider_outage_is_recorded_not_raised(world):
     run = ingest.job_teams_players(p)
     assert run.status == "failed" and "outage" in run.error
     assert db.session.get(DataSyncRun, run.id).finished_at is not None
+
+
+def test_games_before_the_configured_season_start_are_removed_with_their_stats(world, flask_app, monkeypatch):
+    """Providers that also list preseason games: an explicit season start drops everything before day 1 (and never fetches its box scores)."""
+    p = MockNBAProvider(today=TODAY)
+    full_import(p)
+    assert count(ProGame) == 42 and count(GameStat) == 24 * 16
+    monkeypatch.setitem(flask_app.config, "NBA_SEASON_START", "2026-10-26")        # a Monday: Oct 19-25 become "preseason"
+    run = ingest.job_schedule(p, season=2026)
+    assert run.status == "success"
+    remaining = db.session.scalars(db.select(ProGame).where(ProGame.provider == "mock")).all()
+    assert remaining and min(g.game_date for g in remaining) >= date(2026, 10, 26) and min(g.day for g in remaining) == 1
+    assert count(GameStat) == 3 * 16                                                       # only Oct 26 (3 games x 16 players) is still final and in the season
+    assert count(PlayerFantasyScore) > 0 and not db.session.scalar(db.select(db.func.count(PlayerFantasyScore.id)).where(
+        PlayerFantasyScore.pro_game_id.not_in(db.select(ProGame.id))))                      # no scores left pointing at deleted games
