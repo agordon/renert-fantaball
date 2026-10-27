@@ -2,9 +2,9 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp, useLeagueData } from "@/lib/league-context";
-import { Badge, Button, Card, ErrorBox, PageHeader, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
-import { SimControls } from "@/components/sim-controls";
+import { ScoredThrough } from "@/components/scored-through";
 import { cn } from "@/lib/utils";
 
  
@@ -31,7 +31,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Matchup Center" sub={<>Week {w} of {data.total_weeks} <SimBadge /></>} action={<SimControls />} />
+      <PageHeader title="Matchup Center" sub={<>Week {w} of {data.total_weeks} <DataBadge /></>} action={<ScoredThrough />} />
       <div className="mb-4 flex items-center gap-2">
         <Button size="sm" disabled={w <= 1} onClick={() => setWeek(w - 1)} aria-label="Previous week"><ChevronLeft className="h-4 w-4" /></Button>
         <span className="num text-sm">Week {w}</span>
@@ -100,7 +100,7 @@ function Roster({ title, team, days, cur }: { title: string; team: any; days: nu
         <tbody>{starters.map((p: any) => row(p))}
           <tr><td colSpan={5} className="bg-panel2 px-1.5 py-1 text-[11px] uppercase tracking-wider text-ink3">Bench / IR · bench production {team.bench_points.toFixed(1)} (not counted)</td></tr>
           {bench.map((p: any) => row(p, true))}</tbody></table>
-      <span className="sr-only">Current simulated day {cur}, week days {days[0]} to {days[days.length - 1]}</span>
+      <span className="sr-only">Current day {cur}, week days {days[0]} to {days[days.length - 1]}</span>
     </Card>
   );
 }

@@ -11,8 +11,6 @@ from root import app, db
 from models.people import Person  # noqa: F401
 import models.fantasy  # noqa: F401
 from models.init_data import init_data
-from fantaball.seed import load_world, seed_demo_league
-from fantaball.providers import DemoProvider
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -88,14 +86,6 @@ with app.app_context():
         init_database()
         if app.config["ENVIRONMENT"] == "development":
             init_data()
-        # Simulated demo world + pre-played demo league: only when explicitly enabled (FLASK_DEMO_DATA=true).
-        if app.config.get("DEMO_DATA"):
-            for _sport in ("nba_demo", "nhl"):
-                load_world(DemoProvider(_sport))
-            seed_demo_league(
-                app.config.get("JWT_AUTH_DUMMY_USER_EMAIL", "john.doe@example.com"),
-                f"{app.config.get('JWT_AUTH_DUMMY_USER_FIRST_NAME', 'John')} {app.config.get('JWT_AUTH_DUMMY_USER_LAST_NAME', 'Doe')}",
-            )
 
 
 if __name__ == "__main__":

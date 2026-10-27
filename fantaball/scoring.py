@@ -1,13 +1,10 @@
 """Configurable scoring engine.
 
 A league stores a dict of {stat_key: points_per_unit}. Scoring a stat line is a plain weighted sum, so any sport
-(NBA, NHL, ...) works with the same code.
+(NBA today, other sports later) works with the same code.
 
-Two entry points:
-  * score_decimal()   - STRICT and exact (Decimal). Used for real imported data: if a stat that has a non-zero weight
-                        was not reported (None / absent) the result is None ("cannot be scored"), never a silent 0.
-  * score_stat_line() - lenient float version used by the simulated demo world, where absent stats really mean 0
-                        (e.g. a hockey skater has no goalie saves).
+score_decimal() is STRICT and exact (Decimal): if a stat that has a non-zero weight was not reported (None / absent)
+the result is None ("cannot be scored"), never a silent 0.
 """
 import hashlib
 import json
@@ -35,12 +32,10 @@ def score_decimal(stats: dict, rules: dict) -> Decimal | None:
     return total.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def score_stat_line(stats: dict, rules: dict) -> float:
-    """Fantasy points for one stat line. Unknown / missing stats count as 0 (demo data only - see module docstring)."""
-    total = 0.0
-    for key, weight in rules.items():
-        total += float(stats.get(key, 0) or 0) * float(weight)
-    return round(total, 2)
+def score_float(stats: dict, rules: dict) -> float | None:
+    """score_decimal as a float (for displays and averages); None when the line cannot be scored."""
+    pts = score_decimal(stats, rules)
+    return float(pts) if pts is not None else None
 
 
 def rules_hash(rules: dict) -> str:

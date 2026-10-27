@@ -17,10 +17,8 @@ os.environ["FLASK_SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(_tmp, 
 os.environ["FLASK_JWT_AUTH_DUMMY_USER_IF_NO_PROXY"] = "true"
 os.environ["FLASK_JWT_AUTH_DEBUG"] = "false"
 os.environ["FLASK_DEBUG"] = "false"
-os.environ["FLASK_DEMO_DATA"] = "true"          # tests exercise the explicit demo world
 os.environ["FLASK_SYNC_INLINE"] = "true"        # admin sync runs synchronously in tests
 os.environ["FLASK_ADMIN_EMAILS"] = '["admin@example.com"]'
-os.environ["FLASK_NBA_PROVIDER"] = "mock"
 os.environ["FLASK_CORS_ORIGINS"] = '["http://localhost:3000"]'
 
 
@@ -31,7 +29,7 @@ def make_jwt(email, name="Test User"):
 
 
 class Client:
-    """Test client acting as one user. 'demo' = the built-in dummy user; others come in 'behind a proxy' with a JWT."""
+    """Test client acting as one user. No email = the local development login; others come in 'behind a proxy' with a JWT."""
 
     def __init__(self, flask_client, email=None):
         self.c = flask_client
@@ -65,20 +63,39 @@ class Client:
 @pytest.fixture(scope="session")
 def flask_app():
     import app as app_module
+    from fantaball import timeline
+    from tests.helpers import TODAY  # noqa: F401
+    from tests.mock_provider import MockNBAProvider
     app_module.app.config["TESTING"] = True
+    # The application never ships a fake provider; tests install an offline fixture one.
+    app_module.app.config["NBA_PROVIDER_FACTORY"] = lambda: MockNBAProvider(today=timeline.today())
     return app_module.app
 
 
-@pytest.fixture(scope="session")
-def demo(flask_app):
+@pytest.fixture()
+def world(flask_app, monkeypatch):
+    """An app context with EMPTY NBA tables, 'today' fixed to 2026-10-27."""
+    from root import db
+    from tests.helpers import TODAY, wipe_real_nba
+    monkeypatch.setenv("FLASK_FAKE_TODAY", TODAY.isoformat())
+    with flask_app.app_context():
+        wipe_real_nba()
+        yield
+        db.session.rollback()
+        wipe_real_nba()
+
+
+@pytest.fixture()
+def nba_data(world):
+    """Same as `world`, with teams, players, schedule and box scores already imported (48 draftable players)."""
+    from tests.helpers import TODAY, full_import
+    from tests.mock_provider import MockNBAProvider
+    full_import(MockNBAProvider(today=TODAY))
+
+
+@pytest.fixture()
+def local(flask_app):
     return Client(flask_app.test_client())
-
-
-@pytest.fixture(scope="session")
-def demo_league_id(demo):
-    status, leagues = demo.get("/api/leagues")
-    assert status == 200
-    return next(l["id"] for l in leagues if l["is_demo"])
 
 
 @pytest.fixture()

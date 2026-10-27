@@ -6,7 +6,7 @@ import { useApiData, useApp } from "@/lib/league-context";
 import type { SportInfo } from "@/lib/api-types";
 import { api } from "@/lib/api";
 import type { Player } from "@/lib/types";
-import { Badge, Button, Card, Empty, ErrorBox, InjuryBadge, Input, Modal, PageHeader, PosBadge, SimBadge, Select, Sparkline, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, InjuryBadge, Input, Modal, PageHeader, PosBadge, DataBadge, Select, Sparkline, Spinner } from "@/components/ui";
 import { AddPlayerModal, PlayerProfile } from "@/components/player-modals";
 import { cn, fmt } from "@/lib/utils";
 
@@ -32,7 +32,6 @@ function SportScope() {
         <Card><div className="space-y-2 text-sm text-ink2">
           <p className="font-medium text-ink">No player data has been imported yet.</p>
           <p>An administrator needs to set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page).</p>
-          <p className="text-ink3">The simulated demo players are only available when <code>FLASK_DEMO_DATA=true</code>.</p>
         </div></Card>
       </>
     );
@@ -73,7 +72,7 @@ function Inner({ sport, sportChoices, onSport }: { sport?: string; sportChoices?
 
   return (
     <>
-      <PageHeader title="Players" sub={<>{league ? `Searchable player pool for ${league.name}` : "Player database"} <DataBadge data={data} /></>}
+      <PageHeader title="Players" sub={<>{league ? `Searchable player pool for ${league.name}` : "Player database"} <ListBadge data={data} /></>}
         action={<Button variant={picked.length >= 2 ? "primary" : "outline"} disabled={picked.length < 2} onClick={() => setComparing(true)}><GitCompare className="h-4 w-4" />Compare ({picked.length}/4)</Button>} />
       <Card pad={false}>
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
@@ -152,16 +151,14 @@ function CompareModal({ ids, onClose, labels }: { ids: number[] | null; onClose:
           })}</tbody>
         </table>
       )}
-      <p className="mt-3 text-xs text-ink3">Best value in each row is highlighted. All statistics are simulated.</p>
+      <p className="mt-3 text-xs text-ink3">Best value in each row is highlighted.</p>
     </Modal>
   );
 }
 
 
 /** Where the displayed statistics come from, from the API response itself (works without a league). */
-function DataBadge({ data }: { data: { data_source?: string; as_of_day?: number } | null }) {
+function ListBadge({ data }: { data: { data_source?: string; as_of_day?: number } | null }) {
   if (!data?.data_source) return null;
-  if (data.data_source === "demo") return <SimBadge force text="Simulated statistics" />;
-  if (data.data_source === "mock") return <SimBadge force text="MOCK data - not real NBA statistics" />;
-  return <Badge tone="teal">Real NBA data · BALLDONTLIE</Badge>;
+  return <DataBadge source={data.data_source} />;
 }

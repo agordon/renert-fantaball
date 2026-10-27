@@ -1,8 +1,8 @@
-export type Me = { id: number; email: string; display_name: string; auth_mode: "demo" | "sso"; logout_url: string | null; is_admin: boolean };
+export type Me = { id: number; email: string; display_name: string; auth_mode: "local" | "sso"; logout_url: string | null; is_admin: boolean };
 export type LeagueSummary = {
   id: number; name: string; sport: string; sport_name: string; num_teams: number; status: "pre_draft" | "drafting" | "active";
-  current_day: number; current_week: number; season_days: number; season_weeks: number; is_demo: boolean; is_commissioner: boolean;
-  data_source: "demo" | "balldontlie" | "mock"; is_simulated: boolean; is_mock: boolean; season: number | null; auto_scored: boolean; scored_through: string | null;
+  current_day: number; current_week: number; season_days: number; season_weeks: number; is_commissioner: boolean;
+  data_source: string; season: number | null; scored_through: string | null;
   my_team_id: number; record?: { wins: number; losses: number; ties: number; rank: number; pf: number; team_name: string } | null; members?: number;
 };
 export type Player = {

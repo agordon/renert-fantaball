@@ -1,9 +1,7 @@
-"""MOCK NBA provider - for offline development and automated tests ONLY.
+"""Fixture NBA provider for AUTOMATED TESTS ONLY (not part of the running application).
 
-Everything it returns is invented (fictional players, made-up box scores). It is never used unless it is selected
-explicitly (FLASK_NBA_PROVIDER=mock or passed straight to a test), and rows imported through it are labelled
-`source="mock"` / `Sport.data_source="mock"` so the UI can show a "MOCK DATA" banner. It is NOT a fallback for a failed
-real request.
+Everything it returns is invented so tests need no network and no paid plan. The application never uses it: tests
+install it with app.config["NBA_PROVIDER_FACTORY"]. Rows imported through it are labelled `source="mock"`.
 
 Test hooks (set as attributes): `revision` (2 = emit corrected values for a few rows), `stats_blocked`,
 `fail_after_requests` (raise ProviderUnavailable once N calls have been made).

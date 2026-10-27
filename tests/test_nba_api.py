@@ -11,8 +11,8 @@ import pytest
 from root import db
 from models.fantasy import DataSyncRun
 from fantaball.nba import ingest
-from fantaball.nba.mock import MockNBAProvider
-from tests.test_nba_ingest import full_import, world, wipe_real_nba   # noqa: F401
+from tests.mock_provider import MockNBAProvider
+from tests.helpers import full_import
 
 TODAY = date(2026, 10, 27)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -76,6 +76,7 @@ def test_second_sync_is_rejected_while_one_is_running(world, admin):
 
 
 def test_unconfigured_provider_is_reported_clearly(world, admin, flask_app, monkeypatch):
+    monkeypatch.delitem(flask_app.config, "NBA_PROVIDER_FACTORY")                 # use the real provider configuration
     monkeypatch.setitem(flask_app.config, "NBA_PROVIDER", "balldontlie")
     monkeypatch.delenv("BALLDONTLIE_API_KEY", raising=False)
     monkeypatch.setitem(flask_app.config, "BALLDONTLIE_API_KEY", "")
@@ -90,7 +91,7 @@ def test_sport_level_player_database_handles_missing_values(world, alice):
     assert alice.get("/api/data/players?sport=cricket")[0] == 400
     full_import(MockNBAProvider(today=TODAY))
     s, res = alice.get("/api/data/players?sport=nba&limit=200&sort=proj")
-    assert s == 200 and res["data_source"] == "mock" and res["simulated"] is False
+    assert s == 200 and res["data_source"] == "mock"
     assert res["total"] == 48                                                        # the player with no position is not offered
     assert all(p["positions"] for p in res["players"])
     assert res["players"][0]["proj"] >= res["players"][-1]["proj"]
@@ -103,7 +104,7 @@ def test_sport_level_player_database_handles_missing_values(world, alice):
     _, row = alice.get("/api/data/players?sport=nba&search=Last1020")
     assert row["players"][0]["avg"]["blk"] == pytest.approx(round(sum(reported) / len(reported), 2))
     # a player with no games has no averages (null, not 0) and sorts last
-    rookie = Athlete(sport_id=flaky.sport_id, pro_team_id=flaky.pro_team_id, name="No Games", positions="PG", rank=999, provider="mock", provider_id=9999, is_simulated=False)
+    rookie = Athlete(sport_id=flaky.sport_id, pro_team_id=flaky.pro_team_id, name="No Games", positions="PG", rank=999, provider="mock", provider_id=9999)
     db.session.add(rookie)
     db.session.commit()
     s, res = alice.get("/api/data/players?sport=nba&sort=fpg&dir=desc&limit=200")
@@ -148,8 +149,8 @@ def test_daily_sync_status_flags_plan_limitation(world, alice):
 
 
 # ------------------------------------------------------------------ migrations
-def test_legacy_database_is_migrated_without_losing_data(tmp_path):
-    """A database made by the old db.create_all() (baseline schema + rows) upgrades to the current schema with its data."""
+def test_legacy_database_is_migrated_and_simulated_data_removed(tmp_path):
+    """A database made by the old db.create_all() upgrades to the current schema; simulated rows are deleted, real data is kept."""
     db_file = (tmp_path / "legacy.db").as_posix()
     script = textwrap.dedent(f"""
         import os, sys, json
@@ -179,5 +180,5 @@ def test_legacy_database_is_migrated_without_losing_data(tmp_path):
     out = subprocess.run([sys.executable, "-I", "-c", script], capture_output=True, text=True, timeout=120, cwd=ROOT)
     assert out.returncode == 0, out.stderr[-2000:]
     sports, cfg, leagues, version = json.loads(out.stdout.strip().splitlines()[-1])
-    assert sports == [["nba_demo", "demo"]]                          # the old simulated 'nba' is relabelled, not mistaken for real data
-    assert cfg == [[1]] and leagues == [["L", 3]] and version == [["0002"]]
+    assert sports == [] and cfg == [] and leagues == []              # the old SIMULATED data (sport, league, rules) was removed
+    assert version == [["0003"]]

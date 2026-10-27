@@ -6,12 +6,11 @@ import pytest
 from root import db
 from models.fantasy import (DailyScore, FantasyTeam, League, Matchup, PlayerFantasyScore, ProGame, ScoringRuleSet, Sport, TeamPeriodScore)
 from fantaball.nba import ingest, league_sync, scoring_service
-from fantaball.nba.mock import MockNBAProvider
+from tests.mock_provider import MockNBAProvider
 from fantaball.rulesets import get_or_create_ruleset
 from fantaball.scoring import score_decimal
-from tests.test_nba_ingest import count, full_import, world, wipe_real_nba   # noqa: F401  (fixtures + helpers)
+from tests.helpers import SMALL_ROSTER, count, full_import
 
-SMALL_ROSTER = [["PG", 1], ["SG", 1], ["SF", 1], ["PF", 1], ["C", 1], ["BN", 1]]
 
 
 def nba_sport():
@@ -149,16 +148,15 @@ def test_corrections_flow_into_lineups_and_finalized_weeks(real_league):
     assert (m.home_score if home else m.away_score) == pytest.approx(total_before + 10, abs=0.11)
 
 
-def test_real_league_rejects_simulation_and_requires_imported_data(world, alice):
+def test_league_requires_imported_data_and_a_data_set(world, alice):
     s, res = alice.post("/api/leagues", {"sport": "nba", "name": "No Data League", "num_teams": 4})
-    assert s == 409 and "imported" in res["error"]
-    p = MockNBAProvider(today=date(2026, 10, 27))
-    full_import(p)
+    assert s == 409 and "imported" in res["error"]                                    # no fake fallback data
+    full_import(MockNBAProvider(today=date(2026, 10, 27)))
     lid = make_real_league(alice)
-    s, res = alice.post(f"/api/leagues/{lid}/simulate", {"days": 1})
-    assert s == 409 and "automatically" in res["error"]
+    assert alice.post(f"/api/leagues/{lid}/simulate", {"days": 1})[0] in (404, 405)    # real leagues are only scored from imported stats
     s, _ = alice.post("/api/leagues", {"name": "Missing sport"})
     assert s == 400
+    assert alice.post("/api/leagues", {"sport": "nhl", "name": "Hockey"})[0] == 400
 
 
 def test_real_players_cannot_be_owned_twice_in_a_league(real_league, alice, bob):

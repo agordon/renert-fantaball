@@ -1,6 +1,7 @@
 import pytest
 
 from fantaball.draft import snake_team_slot
+from tests.helpers import SMALL_ROSTER
 
 
 def test_snake_order_12_teams():
@@ -13,21 +14,22 @@ def test_snake_order_12_teams():
         assert sorted(order[r * 12:(r + 1) * 12]) == list(range(1, 13))
 
 
-def test_create_league_validation(alice):
-    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "x"})[0] == 400
-    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "num_teams": 7})[0] == 400
-    assert alice.post("/api/leagues", {"name": "Valid name", "sport": "nhl"})[0] == 400      # not playable yet
-    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "scoring_rules": {"bogus": 1}})[0] == 400
-    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "roster_config": [["PG", 99]]})[0] == 400
-    s, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Alice League", "num_teams": 8, "scoring_rules": {"pts": 1, "reb": 2}})
-    assert s == 201 and lg["is_commissioner"] and lg["status"] == "pre_draft"
+def test_create_league_validation(nba_data, alice):
+    post = lambda **kw: alice.post("/api/leagues", {"sport": "nba", "roster_config": SMALL_ROSTER, **kw})
+    assert post(name="x")[0] == 400
+    assert post(name="Valid name", num_teams=7)[0] == 400
+    assert alice.post("/api/leagues", {"name": "Valid name", "sport": "nhl"})[0] == 400      # no such data set
+    assert post(name="Valid name", scoring_rules={"bogus": 1})[0] == 400
+    assert alice.post("/api/leagues", {"sport": "nba", "name": "Valid name", "roster_config": [["PG", 99]]})[0] == 400
+    s, lg = post(name="Alice League", num_teams=8, scoring_rules={"pts": 1, "reb": 2})
+    assert s == 201 and lg["is_commissioner"] and lg["status"] == "pre_draft" and lg["data_source"] == "mock"
     s, detail = alice.get(f"/api/leagues/{lg['id']}")
     assert detail["scoring_rules"] == {"pts": 1.0, "reb": 2.0}
     assert len(detail["teams"]) == 8 and len(detail["invite_code"]) == 8
 
 
-def test_join_league_by_code_and_access_control(alice, bob):
-    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Join Me", "num_teams": 4})
+def test_join_league_by_code_and_access_control(nba_data, alice, bob):
+    _, lg = alice.post("/api/leagues", {"sport": "nba", "name": "Join Me", "num_teams": 4, "roster_config": SMALL_ROSTER})
     lid = lg["id"]
     assert bob.get(f"/api/leagues/{lid}")[0] == 403                      # non-member cannot read
     assert bob.post("/api/leagues/join", {"code": "NOSUCH00"})[0] == 404
@@ -42,13 +44,13 @@ def test_join_league_by_code_and_access_control(alice, bob):
     assert alice.patch(f"/api/leagues/{lid}", {"name": "Renamed league"})[0] == 200
 
 
-def test_full_mock_draft_enforces_turn_order_and_uniqueness(alice):
-    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Draft Test", "num_teams": 6})
+def test_full_draft_enforces_turn_order_and_uniqueness(nba_data, alice):
+    _, lg = alice.post("/api/leagues", {"sport": "nba", "name": "Draft Test", "num_teams": 6, "roster_config": SMALL_ROSTER})
     lid = lg["id"]
     s, st = alice.post(f"/api/leagues/{lid}/draft/start", {"pick_seconds": 60})
     assert s == 200 and st["session"]["status"] == "live"
     me = st["my_team_id"]
-    # Make sure it's alice's turn (let bots pick first if needed) - she must not be able to pick out of turn
+    # Make sure it's alice's turn (let computer managers pick first if needed) - she must not be able to pick out of turn
     if st["session"]["on_clock_team_id"] != me:
         pool_id = st["pool"][0]["id"]
         assert alice.post(f"/api/leagues/{lid}/draft/pick", {"athlete_id": pool_id})[0] == 403
@@ -59,7 +61,7 @@ def test_full_mock_draft_enforces_turn_order_and_uniqueness(alice):
     s, st = alice.get(f"/api/leagues/{lid}/draft")
     first = st["pool"][0]["id"]
     assert alice.post(f"/api/leagues/{lid}/draft/pick", {"athlete_id": first})[0] == 200
-    # advance bots until alice's next turn, then try to take the same player again
+    # advance computer picks until alice's next turn, then try to take the same player again
     while True:
         s, st = alice.post(f"/api/leagues/{lid}/draft/advance", {})
         if st["session"]["on_clock_team_id"] == me:

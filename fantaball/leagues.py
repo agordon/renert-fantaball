@@ -86,7 +86,7 @@ def clean_roster_config(sport_code: str, cfg) -> list:
 
 
 def create_league(manager: Manager, name: str, sport_code: str, num_teams: int = 12, scoring_rules=None,
-                  roster_config=None, team_name: str | None = None, fill_bots: bool = True, is_demo: bool = False) -> League:
+                  roster_config=None, team_name: str | None = None, fill_bots: bool = True) -> League:
     name = (name or "").strip()
     if not 3 <= len(name) <= 50:
         raise bad_request("League name must be 3-50 characters")
@@ -96,9 +96,7 @@ def create_league(manager: Manager, name: str, sport_code: str, num_teams: int =
         raise bad_request("Number of teams must be an even number from 4 to 14")
     sport = db.session.scalar(db.select(Sport).where(Sport.code == sport_code))
     if not sport or not db.session.scalar(db.select(db.func.count(Athlete.id)).where(*pool_filter(sport.id))):
-        if sport_code == "nba":
-            raise conflict("No real NBA data has been imported yet. An administrator must run the data import first (see Data Administration).")
-        raise bad_request("Data for that sport is not loaded")
+        raise conflict("No NBA data has been imported yet. An administrator must run the data import first (see Data Administration).")
     try:
         rules = validate_rules(sport_code, scoring_rules) if scoring_rules is not None else default_rules(sport_code)
     except ValueError as e:
@@ -106,7 +104,7 @@ def create_league(manager: Manager, name: str, sport_code: str, num_teams: int =
     cfg = clean_roster_config(sport_code, roster_config)
 
     league = League(name=name, sport_id=sport.id, commissioner_id=manager.id, invite_code=new_invite_code(),
-                    num_teams=num_teams, roster_config=cfg, is_demo=is_demo, season=sport.season)
+                    num_teams=num_teams, roster_config=cfg, season=sport.season)
     db.session.add(league)
     db.session.flush()
     db.session.add(ScoringConfig(league_id=league.id, rules=rules, ruleset_id=get_or_create_ruleset(sport.id, rules).id))

@@ -63,7 +63,7 @@ def matchup_detail(league: League, m: Matchup, week: int | None = None) -> dict:
     away = db.session.get(FantasyTeam, m.away_team_id)
     hs, as_ = team_side(league, home, info, summ), team_side(league, away, info, summ)
     return dict(id=m.id, week=m.week, final=m.final, first_day=info["first_day"], last_day=info["last_day"], current_day=league.current_day,
-                home=hs, away=as_, simulated=True)
+                home=hs, away=as_)
 
 
 def weekly_scores(league: League) -> dict:

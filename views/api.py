@@ -9,14 +9,14 @@ from models.fantasy import Activity, Athlete, FantasyTeam, League, Matchup, Play
 from fantaball import gm as gm_svc
 from fantaball import leagues as league_svc
 from fantaball import matchups as matchup_svc
-from fantaball import simulation, stats as stats_svc
+from fantaball import stats as stats_svc
 from fantaball import transactions as tx
 from fantaball.errors import bad_request, conflict, forbidden, not_found
 from fantaball.pool import pool_query
 from fantaball.lineups import auto_set_lineup, set_lineup, team_slots
 from fantaball.sports import PLAYABLE_SPORTS, SPORTS
 from fantaball import timeline
-from fantaball.scoring import score_decimal
+from fantaball.scoring import score_float
 from views.api_common import (AthleteContext, api, body, clean_display_name, get_athlete, int_arg, int_list, is_admin, league_json, need_int,
                               team_json)
 
@@ -30,9 +30,9 @@ def health(me):
 @api("/me")
 def get_me(me):
     jwt_cfg = current_app.extensions.get("jwtauthmanager")
-    demo = bool(jwt_cfg and jwt_cfg.dummy_user_if_no_proxy and not jwt_cfg.is_behind_proxy())
-    return dict(id=me.id, email=me.email, display_name=me.display_name, auth_mode="demo" if demo else "sso",
-                logout_url=None if demo else jwt_cfg.logout_path, is_admin=is_admin(me))
+    local_login = bool(jwt_cfg and jwt_cfg.dummy_user_if_no_proxy and not jwt_cfg.is_behind_proxy())
+    return dict(id=me.id, email=me.email, display_name=me.display_name, auth_mode="local" if local_login else "sso",
+                logout_url=None if local_login else jwt_cfg.logout_path, is_admin=is_admin(me))
 
 
 @api("/me", methods=("PATCH",))
@@ -118,19 +118,6 @@ def rename_team(me, league_id):
     team.name = league_svc.clean_team_name(body().get("name"))
     db.session.commit()
     return dict(id=team.id, name=team.name)
-
-
-@api("/leagues/<int:league_id>/simulate", methods=("POST",))
-def simulate(me, league_id):
-    lg, team = league_svc.membership(me, league_id)
-    league_svc.require_commissioner(me, lg)
-    if not simulation.is_demo(lg):
-        raise conflict("Leagues using real NBA data advance automatically when new box scores are imported - there is nothing to simulate.")
-    days = body().get("days", 1)
-    if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 14:
-        raise bad_request("days must be a whole number from 1 to 14")
-    res = simulation.advance_days(lg, days)
-    return dict(league=league_json(lg, me, team), last=res)
 
 
 # ----------------------------------------------------------------------------- roster
@@ -236,7 +223,7 @@ def player_list(ctx: AthleteContext, my_team_id: int | None = None) -> dict:
     present.sort(key=value, reverse=desc)
     rows = present + missing
     sport_code = ctx.sport.code
-    return dict(total=len(rows), players=rows[offset:offset + limit], simulated=ctx.sport.data_source == "demo", data_source=ctx.sport.data_source,
+    return dict(total=len(rows), players=rows[offset:offset + limit], data_source=ctx.sport.data_source,
                 as_of_day=ctx.day, empty=not rows and not (q or pos or pro or inj or status != "all"),
                 teams=[dict(abbr=t.abbr, name=f"{t.city} {t.name}") for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == ctx.sport_id).order_by(ProTeam.abbr))],
                 positions=SPORTS[sport_code]["positions"], stat_labels=SPORTS[sport_code]["stats"])
@@ -249,11 +236,8 @@ def players(me, league_id):
 
 
 def fantasy_points(sport, stats: dict, rules: dict):
-    """Fantasy points for one stat line: strict (None if a needed stat is missing) for real data, lenient for the demo world."""
-    if sport.data_source == "demo":
-        return stats_svc.score_stat_line(stats, rules)
-    pts = score_decimal(stats, rules)
-    return float(pts) if pts is not None else None
+    """Fantasy points for one stat line, or None when a stat the rules need was not reported (never a silent 0)."""
+    return score_float(stats, rules)
 
 
 def player_profile_payload(ctx: AthleteContext, a: Athlete) -> dict:
@@ -307,13 +291,10 @@ def compare(me, league_id):
 
 
 def upcoming_games(sport, pro_team_id: int, day: int, days: int) -> list[dict]:
-    """A pro team's next games. Demo: sim days after `day`. Real data: games from today on that have not finished."""
-    q = db.select(ProGame).where(ProGame.sport_id == sport.id, db.or_(ProGame.home_team_id == pro_team_id, ProGame.away_team_id == pro_team_id))
-    if sport.data_source == "demo":
-        q = q.where(ProGame.day > day, ProGame.day <= day + days)
-    else:
-        today = timeline.today()
-        q = q.where(ProGame.game_date >= today, ProGame.game_date <= today + timedelta(days=days), ProGame.status != "final")
+    """A pro team's next games: from today on, not yet finished."""
+    today = timeline.today()
+    q = db.select(ProGame).where(ProGame.sport_id == sport.id, db.or_(ProGame.home_team_id == pro_team_id, ProGame.away_team_id == pro_team_id),
+                                 ProGame.game_date >= today, ProGame.game_date <= today + timedelta(days=days), ProGame.status != "final")
     teams = {t.id: t.abbr for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == sport.id))}
     return [dict(day=g.day, date=g.game_date.isoformat() if g.game_date else None, opponent=teams[g.away_team_id if g.home_team_id == pro_team_id else g.home_team_id],
                  home=g.home_team_id == pro_team_id) for g in db.session.scalars(q.order_by(ProGame.day))]
@@ -392,7 +373,7 @@ def what_if_lineup(me, league_id):
 @api("/leagues/<int:league_id>/dashboard")
 def dashboard(me, league_id):
     lg, team = league_svc.membership(me, league_id)
-    data = dict(league=league_json(lg, me, team), team=team_json(team, me), simulated=lg.sport.data_source == "demo")
+    data = dict(league=league_json(lg, me, team), team=team_json(team, me))
     data["data"] = data_block(lg)
     if lg.status != "active":
         data["activity"] = activity.__wrapped__(me, league_id)
@@ -426,29 +407,23 @@ def data_block(lg: League) -> dict:
     """Where this league's numbers come from and how fresh they are (shown next to every statistic)."""
     from models.fantasy import DataSyncRun
     sport = lg.sport
-    last_ok = None
-    if sport.data_source != "demo":
-        last_ok = db.session.scalar(db.select(db.func.max(DataSyncRun.finished_at)).where(DataSyncRun.provider == sport.data_source, DataSyncRun.status.in_(("success", "partial"))))
-    last_stat = db.session.scalar(db.select(db.func.max(ProGame.stats_synced_at)).where(ProGame.sport_id == sport.id)) if sport.data_source != "demo" else None
-    return dict(source=sport.data_source, simulated=sport.data_source == "demo", season=sport.season,
-                last_sync=last_ok.isoformat() + "Z" if last_ok else None, stats_as_of=last_stat.isoformat() + "Z" if last_stat else None,
-                scored_through=_scored_through(lg))
+    last_ok = db.session.scalar(db.select(db.func.max(DataSyncRun.finished_at)).where(DataSyncRun.provider == sport.data_source, DataSyncRun.status.in_(("success", "partial"))))
+    last_stat = db.session.scalar(db.select(db.func.max(ProGame.stats_synced_at)).where(ProGame.sport_id == sport.id))
+    return dict(source=sport.data_source, season=sport.season, last_sync=last_ok.isoformat() + "Z" if last_ok else None,
+                stats_as_of=last_stat.isoformat() + "Z" if last_stat else None, scored_through=_scored_through(lg))
 
 
 def _scored_through(lg: League):
-    if lg.sport.data_source == "demo" or lg.sport.season_start is None or lg.current_day < 1:
+    if lg.sport.season_start is None or lg.current_day < 1:
         return None
     return timeline.date_of(lg.sport, lg.current_day).isoformat()
 
 
 def upcoming_pro_games(sport, day: int, days: int) -> list[dict]:
-    """Next professional games (all teams) for the dashboard."""
-    q = db.select(ProGame).where(ProGame.sport_id == sport.id, ProGame.postseason.is_(False))
-    if sport.data_source == "demo":
-        q = q.where(ProGame.day > day, ProGame.day <= day + days)
-    else:
-        today = timeline.today()
-        q = q.where(ProGame.game_date >= today, ProGame.game_date <= today + timedelta(days=days), ProGame.status != "final")
+    """Next professional games (all teams) for the dashboard: from today on, not yet finished."""
+    today = timeline.today()
+    q = db.select(ProGame).where(ProGame.sport_id == sport.id, ProGame.postseason.is_(False), ProGame.game_date >= today,
+                                 ProGame.game_date <= today + timedelta(days=days), ProGame.status != "final")
     teams = {t.id: t.abbr for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == sport.id))}
     return [dict(day=g.day, date=g.game_date.isoformat() if g.game_date else None, starts_at=g.starts_at.isoformat() + "Z" if g.starts_at else None,
                  status=g.status, home=teams[g.home_team_id], away=teams[g.away_team_id]) for g in db.session.scalars(q.order_by(ProGame.day, ProGame.starts_at).limit(24))]

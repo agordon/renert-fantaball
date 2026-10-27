@@ -1,7 +1,7 @@
 """Connect imported real data to fantasy leagues: advance leagues over completed days and re-score after corrections."""
 from root import db
 from models.fantasy import DailyScore, League, ProGame, Sport
-from fantaball import simulation, timeline
+from fantaball import league_scoring, timeline
 from fantaball.nba import scoring_service
 
 POSTPONED_AFTER_DAYS = 3        # a game still 'scheduled' this long after its date is treated as postponed, not blocking
@@ -41,7 +41,7 @@ def advance_leagues(sport: Sport) -> int:
     advanced = 0
     for league in db.session.scalars(db.select(League).where(League.sport_id == sport.id, League.status == "active")):
         while league.current_day < target and league.current_day < sport_season_days(league):
-            simulation.advance_day(league)
+            league_scoring.advance_day(league)
             advanced += 1
     return advanced
 
@@ -68,8 +68,8 @@ def rescore_leagues(sport: Sport, days: set[int] | None):
                 new = round(pts.get(row.athlete_id, row.points), 2)
                 if new != row.points:
                     row.points = new
-                    weeks.add(simulation.week_of(league, day))
+                    weeks.add(league_scoring.week_of(league, day))
         db.session.flush()
         for week in sorted(weeks):
-            simulation.recompute_week(league, week)
+            league_scoring.recompute_week(league, week)
         db.session.commit()

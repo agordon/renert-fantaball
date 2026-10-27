@@ -108,7 +108,6 @@ STAT_FIELDS = ("minutes", "pts", "reb", "oreb", "dreb", "ast", "stl", "blk", "to
 # ------------------------------------------------------------------ interface
 class NBADataProvider(ABC):
     name: str                               # stored in Sport.data_source and on every imported row
-    is_mock: bool = False
 
     @abstractmethod
     def teams(self) -> list[TeamRecord]: ...

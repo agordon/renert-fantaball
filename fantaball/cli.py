@@ -25,8 +25,6 @@ def _provider():
     except ProviderError as exc:
         click.echo(f"ERROR: {exc}", err=True)
         sys.exit(2)
-    if p.is_mock:
-        click.secho("*** MOCK PROVIDER: invented data for offline development - not real NBA statistics ***", fg="yellow")
     return p
 
 
@@ -129,7 +127,7 @@ def bootstrap_cmd(season):
 @nba.command("purge-data")
 @click.option("--yes", is_flag=True, help="Confirm deleting all imported NBA rows (only allowed while no league uses them)")
 def purge_cmd(yes):
-    """Delete imported NBA data (to switch between mock and real provider on a dev database)."""
+    """Delete imported NBA data (only allowed while no league uses it)."""
     sport = db.session.scalar(db.select(Sport).where(Sport.code == "nba"))
     if sport is None:
         click.echo("Nothing to purge.")
@@ -142,18 +140,6 @@ def purge_cmd(yes):
         click.secho(f"ERROR: {exc.message}", fg="red", err=True)
         sys.exit(1)
     click.echo("Purged.")
-
-
-@nba.command("demo-seed")
-def demo_seed_cmd():
-    """Create the SIMULATED demo world and a pre-played demo league (explicit demo mode)."""
-    from fantaball.providers import DemoProvider
-    from fantaball.seed import load_world, seed_demo_league
-    for sport in ("nba_demo", "nhl"):
-        load_world(DemoProvider(sport))
-    seed_demo_league(current_app.config.get("JWT_AUTH_DUMMY_USER_EMAIL", "john.doe@example.com"),
-                     f"{current_app.config.get('JWT_AUTH_DUMMY_USER_FIRST_NAME', 'John')} {current_app.config.get('JWT_AUTH_DUMMY_USER_LAST_NAME', 'Doe')}")
-    click.echo("Demo data ready (simulated, clearly labelled in the UI).")
 
 
 def register(app):

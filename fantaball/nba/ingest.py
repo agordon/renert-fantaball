@@ -22,7 +22,7 @@ from fantaball.errors import ApiError
 from fantaball.nba import config as nba_config
 from fantaball.nba.provider import (NBADataProvider, ProviderAccessError, ProviderAuthError, ProviderError, STAT_FIELDS, StatRecord)
 from fantaball.rulesets import ensure_default_template
-from fantaball.scoring import score_stat_line
+from fantaball.scoring import score_float
 
 log = logging.getLogger("fantaball.nba.ingest")
 
@@ -154,7 +154,7 @@ def _upsert_player(sport, provider_name, rec, team, athletes, counts, now):
                   height=rec.height, weight=rec.weight, pro_team_id=team.id, meta=rec.meta or None, active=True)
     a = athletes.get(rec.provider_id)
     if a is None:
-        a = Athlete(sport_id=sport.id, provider=provider_name, provider_id=rec.provider_id, rank=1_000_000, age=None, is_simulated=False, synced_at=now, **values)
+        a = Athlete(sport_id=sport.id, provider=provider_name, provider_id=rec.provider_id, rank=1_000_000, age=None, synced_at=now, **values)
         db.session.add(a)
         athletes[rec.provider_id] = a
         counts.inserted += 1
@@ -174,8 +174,10 @@ def recompute_ranks(sport: Sport):
     rows = db.session.execute(db.select(GameStat.athlete_id, GameStat.stats).join(Athlete, Athlete.id == GameStat.athlete_id).where(Athlete.sport_id == sport.id)).all()
     for aid, stats in rows:
         t = totals.setdefault(aid, [0.0, 0])
-        t[0] += score_stat_line(stats, rules)
-        t[1] += 1
+        fp = score_float(stats, rules)
+        if fp is not None:                       # lines that cannot be scored do not count towards the ranking
+            t[0] += fp
+            t[1] += 1
     athletes = list(db.session.scalars(db.select(Athlete).where(Athlete.sport_id == sport.id)))
 
     def key(a: Athlete):

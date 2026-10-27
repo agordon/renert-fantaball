@@ -4,7 +4,7 @@ import { ArrowLeftRight, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, Empty, ErrorBox, Modal, PageHeader, Segmented, Select, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Modal, PageHeader, Segmented, Select, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Trades" sub={<>Trade machine, offers and history <SimBadge /></>}
+      <PageHeader title="Trades" sub={<>Trade machine, offers and history <DataBadge /></>}
         action={<Segmented label="Trades view" value={tab} onChange={setTab} options={[{ value: "machine", label: "Trade machine" }, { value: "offers", label: `Offers${pendingCount ? ` (${pendingCount})` : ""}` }, { value: "history", label: "Completed" }]} />} />
       {act.error && <div className="mb-3"><ErrorBox message={act.error} /></div>}
       {tab === "machine" && <Machine onSent={() => { trades.reload(); }} />}

@@ -11,9 +11,9 @@ Shrinking toward the prior stops a 2-game hot streak from looking like a superst
 import json
 
 from root import db
-from models.fantasy import Athlete, GameStat, ProGame, Sport
+from models.fantasy import Athlete, GameStat, ProGame
 from fantaball.pool import pool_filter
-from fantaball.scoring import score_decimal, score_stat_line
+from fantaball.scoring import score_float
 
 PRIOR_GAMES = 8
 
@@ -91,17 +91,15 @@ def projection(rank: int, n_players: int, fps: list[float]) -> float:
 def summaries(sport_id: int, rules: dict, through_day: int) -> dict:
     """{athlete_id: {gp, gp_scored, avg:{stat:..}, total, fpg, last5, proj, recent:[{day, fp}]}} for every athlete in the sport.
 
-    Missing data is never turned into zero for real (provider) data:
+    Missing data is never turned into zero:
       * avg[stat] is the mean over games that REPORTED the stat (absent when no game did);
       * a game whose needed stats were not all reported is not scored (strict Decimal scoring) and is left out of fpg;
       * fpg / last5 are None when there is nothing to average.
-    The simulated demo world keeps the lenient scoring (absent stat = 0, e.g. hockey skaters have no goalie stats).
     """
     log = game_log(sport_id)
     key = (sport_id, json.dumps(rules, sort_keys=True), through_day, _log_signature(sport_id))
     if key in _summary_cache:
         return _summary_cache[key]
-    strict = db.session.scalar(db.select(Sport.data_source).where(Sport.id == sport_id)) != "demo"
     athletes = db.session.execute(db.select(Athlete.id, Athlete.rank).where(Athlete.sport_id == sport_id)).all()
     n = db.session.scalar(db.select(db.func.count(Athlete.id)).where(*pool_filter(sport_id))) or len(athletes)
     out = {}
@@ -109,7 +107,7 @@ def summaries(sport_id: int, rules: dict, through_day: int) -> dict:
         games = [(d, s) for d, s in log.get(aid, []) if d <= through_day]
         scored = []                                   # (day, fantasy points) for games that could be scored
         for d, s in games:
-            pts = float(score_decimal(s, rules)) if strict and score_decimal(s, rules) is not None else (None if strict else score_stat_line(s, rules))
+            pts = score_float(s, rules)
             if pts is not None:
                 scored.append((d, pts))
         fps = [f for _, f in scored]

@@ -19,7 +19,7 @@ export default function SettingsPage() {
         <Card title="Your profile">
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); profile.run(async () => { await api("/me", { method: "PATCH", body: { display_name: name } }); await reload(); setSaved(true); }); }}>
             <label className="block text-xs text-ink3">Display name<Input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} minLength={2} maxLength={40} className="mt-1" /></label>
-            <div className="text-xs text-ink3">Account: <span className="num text-ink2">{me?.email}</span> <Badge>{me?.auth_mode === "demo" ? "Local demo account" : "School sign-in"}</Badge></div>
+            <div className="text-xs text-ink3">Account: <span className="num text-ink2">{me?.email}</span> <Badge>{me?.auth_mode === "local" ? "Local development login" : "School sign-in"}</Badge></div>
             {profile.error && <ErrorBox message={profile.error} />}
             <div className="flex items-center gap-3"><Button type="submit" variant="primary" disabled={profile.busy}>Save</Button>{saved && <span className="text-xs text-good">Saved</span>}</div>
             {me?.auth_mode === "sso" && <p className="text-xs text-ink3">Sign-in and sign-out are handled by the school login (OAuth2-Proxy).</p>}

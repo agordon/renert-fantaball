@@ -46,7 +46,7 @@ export default function LeaguesPage() {
           <button key={l.id} onClick={() => { setLeagueId(l.id); router.push("/"); }} className={`rounded-lg border bg-panel p-4 text-left transition-colors hover:bg-panel2 ${l.id === league?.id ? "border-teal/60" : "border-line"}`}>
             <div className="flex items-start justify-between gap-2"><div className="font-medium">{l.name}</div>{l.id === league?.id && <Badge tone="teal">Selected</Badge>}</div>
             <div className="mt-1 text-xs text-ink3">{l.sport_name} · {l.num_teams} teams · Head-to-head points</div>
-            <div className="mt-1"><Badge tone={l.is_simulated || l.is_mock ? "amber" : "teal"}>{l.is_simulated ? "Simulated demo data" : l.is_mock ? "MOCK data" : "Real NBA data"}</Badge></div>
+            <div className="mt-1"><Badge tone="teal">Real NBA data</Badge></div>
             <div className="mt-3 flex items-center gap-2 text-sm">
               {l.record ? <><span className="num font-semibold">{l.record.wins}-{l.record.losses}{l.record.ties ? `-${l.record.ties}` : ""}</span><span className="text-ink3">#{l.record.rank} of {l.num_teams}</span></>
                 : <Badge tone="amber">{l.status === "drafting" ? "Draft in progress" : "Pre-draft"}</Badge>}
@@ -63,7 +63,6 @@ export default function LeaguesPage() {
             <div className="space-y-2 text-sm text-ink2">
               <p className="font-medium text-ink">There is no player data to build a league on yet.</p>
               <p>An administrator must import real NBA data first: set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code>, or use the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page.</p>
-              <p className="text-ink3">Developers can enable simulated demo players with <code>FLASK_DEMO_DATA=true</code>.</p>
             </div>
           ) : (
           <form onSubmit={submitCreate} className="space-y-4">
@@ -74,7 +73,7 @@ export default function LeaguesPage() {
             </div>
             <label className="block text-xs text-ink3">Data
               <Select value={sport?.code ?? ""} onChange={(e) => setSportCode(e.target.value)} className="mt-1 block w-full">
-                {choices.map((c) => <option key={c.code} value={c.code}>{c.name} · {c.data_source === "demo" ? "simulated demo data" : c.data_source === "mock" ? "MOCK data" : `real data (${c.season}-${String((c.season ?? 0) + 1).slice(2)})`} · {c.players} players</option>)}
+                {choices.map((c) => <option key={c.code} value={c.code}>{c.name} · {`real data (${c.season}-${String((c.season ?? 0) + 1).slice(2)})`} · {c.players} players</option>)}
               </Select></label>
             <fieldset>
               <legend className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink3">Head-to-head points scoring (points per stat)</legend>

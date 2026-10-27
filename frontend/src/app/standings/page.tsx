@@ -2,7 +2,7 @@
 import * as React from "react";
 import { WeeklyChart } from "@/components/charts";
 import { useLeagueData } from "@/lib/league-context";
-import { Badge, Card, ErrorBox, PageHeader, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Card, ErrorBox, PageHeader, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ function Inner() {
   const mine = data.standings.find((r: any) => r.team_id === data.my_team_id);
   return (
     <>
-      <PageHeader title="Standings" sub={<>Head-to-head points · top 6 make the playoffs <SimBadge /></>} />
+      <PageHeader title="Standings" sub={<>Head-to-head points · top 6 make the playoffs <DataBadge /></>} />
       <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
         <Card pad={false}>
           <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
@@ -49,7 +49,7 @@ function Inner() {
           {mine && <Card><p className="text-sm text-ink2">You are <b className="text-ink">#{mine.rank}</b> at {mine.w}-{mine.l}. {mine.playoff ? "You are currently in a playoff spot." : "You are currently outside the playoff line."}</p></Card>}
         </div>
       </div>
-      <Card className="mt-4" title="Weekly scoring by team (your team highlighted)" action={<SimBadge />}>
+      <Card className="mt-4" title="Weekly scoring by team (your team highlighted)" action={<DataBadge />}>
         <WeeklyChart data={data} />
       </Card>
     </>

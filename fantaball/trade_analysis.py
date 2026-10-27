@@ -77,7 +77,7 @@ def analyze_trade(league: League, team_a: FantasyTeam, team_b: FantasyTeam, give
                 out.append(f"{who} would receive {a.name}, who is currently {st} ({a.injury_note}).")
             if summ[a.id]["gp"] < 8 and league.current_day > 0:
                 out.append(f"{a.name} has only {summ[a.id]['gp']} games played - the projection is mostly the preseason prior.")
-            if a.age >= 33:
+            if a.age is not None and a.age >= 33:
                 out.append(f"{a.name} is {a.age}: age/decline risk.")
         top_out = max(players_out, key=lambda a: summ[a.id]["proj"], default=None)
         if top_out and top_out.id in {i for i in evaluate_roster(league, (roster_a if who == team_a.name else roster_b), summ)["starter_ids"]}:
@@ -106,6 +106,6 @@ def analyze_trade(league: League, team_a: FantasyTeam, team_b: FantasyTeam, give
         ai_reason=("The computer manager's weekly projection does not drop and the value is close enough." if bot_ok
                    else "The computer manager would lose projected weekly points or too much rest-of-season value."),
         give=[a.id for a in give], get=[a.id for a in get],
-        disclaimer="Projections are estimates from simulated demo data, not guarantees.",
+        disclaimer="Projections are statistical estimates, not guarantees.",
         method="Weekly = best-lineup sum of projected points/game x expected games/week. Value = projection x remaining games.",
     )

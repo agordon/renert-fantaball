@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useApiData, useApp } from "@/lib/league-context";
 import type { DataStatus } from "@/lib/api-types";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, Empty, ErrorBox, Input, PageHeader, Select, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Input, PageHeader, Select, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ function Inner() {
   const [picked, setPicked] = React.useState<number | null>(null);
   const act = useAction();
   const lid = league!.id;
-  const { data: dataStatus } = useApiData<DataStatus>(league!.is_simulated ? null : "/data/status");
+  const { data: dataStatus } = useApiData<DataStatus>("/data/status");
 
   const load = React.useCallback(async () => {
     try { setSt(await api(`/leagues/${lid}/draft`)); setError(null); } catch (e) { setError((e as Error).message); }
@@ -110,7 +110,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Draft Room" sub={<>{league!.name} · snake draft <SimBadge text="Simulated player pool" /></>}
+      <PageHeader title="Draft Room" sub={<>{league!.name} · snake draft <DataBadge /></>}
         action={live && st.is_commissioner ? <div className="flex gap-2">
           <Button size="sm" onClick={() => simAll(false)} disabled={act.busy || myTurn}><FastForward className="h-3.5 w-3.5" />Sim to my pick</Button>
           <Button size="sm" onClick={() => confirm("Auto-draft every remaining pick, including yours?") && simAll(true)} disabled={act.busy}><Bot className="h-3.5 w-3.5" />Auto-draft the rest</Button></div> : undefined} />

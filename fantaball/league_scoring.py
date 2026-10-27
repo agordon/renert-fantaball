@@ -1,11 +1,8 @@
-"""Advance a league one day at a time and keep matchup totals up to date.
+"""Score a league one completed day at a time and keep matchup totals up to date.
 
-Two sources of daily points, same downstream logic:
-  * DEMO leagues (sport.data_source == "demo"): the simulated game logs already exist; "advancing" reveals the next day
-    (commissioner button). Points = fantaball.scoring.score_stat_line over the day's stat line.
-  * REAL leagues: advanced automatically by the data pipeline once every game of a day is final and its box score is
-    imported (fantaball/nba/league_sync.py). Points come from PlayerFantasyScore (persisted, rule-set aware).
-Each team's lineup AS IT STANDS that day is snapshotted in DailyScore; bots / auto-lineup teams re-optimize first.
+The data pipeline (fantaball/nba/league_sync.py) calls advance_day() once every game of a day is final and its box score is
+imported. Points come from PlayerFantasyScore (persisted, rule-set aware). Each team's lineup AS IT STANDS that day is
+snapshotted in DailyScore; computer-managed / auto-lineup teams re-optimize first.
 """
 import random
 
@@ -16,13 +13,8 @@ from fantaball.errors import conflict
 from fantaball.leagues import log_activity, teams_of
 from fantaball.lineups import auto_set_lineup, owner_map, rules_of, team_slots
 from fantaball.pool import pool_query
-from fantaball.scoring import score_stat_line
 from fantaball.sports import SPORTS
 from fantaball.transactions import add_drop
-
-
-def is_demo(league: League) -> bool:
-    return league.sport.data_source == "demo"
 
 
 def week_of(league: League, day: int) -> int:
@@ -30,15 +22,7 @@ def week_of(league: League, day: int) -> int:
 
 
 def _day_points(league: League, day: int) -> dict[int, float]:
-    """{athlete_id: fantasy points} for every athlete who played on `day`."""
-    if is_demo(league):
-        rules = rules_of(league)
-        out = {}
-        for aid, games in stats_svc.game_log(league.sport_id).items():
-            for d, s in games:
-                if d == day:
-                    out[aid] = score_stat_line(s, rules)
-        return out
+    """{athlete_id: fantasy points} for every athlete who played on `day` (lines that cannot be scored are left out)."""
     from fantaball.nba import scoring_service
     return scoring_service.points_for_day(league.scoring.ruleset_id, day)
 
@@ -109,15 +93,6 @@ def recompute_week(league: League, week: int) -> dict:
             else:
                 tps.points, tps.final, tps.calculated_at = score, m.final, now
     return dict(week_finalized=bool(finals))
-
-
-def advance_days(league: League, n: int) -> dict:
-    last = {}
-    for _ in range(n):
-        if league.current_day >= SPORTS[league.sport.code]["season_days"]:
-            break
-        last = advance_day(league)
-    return last
 
 
 def _bot_waiver_move(league: League, team: FantasyTeam, day: int):

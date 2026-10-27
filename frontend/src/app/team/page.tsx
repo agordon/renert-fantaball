@@ -6,7 +6,7 @@ import { useApp, useLeagueData } from "@/lib/league-context";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/use-action";
 import type { Player } from "@/lib/types";
-import { Badge, Button, Card, ErrorBox, InjuryBadge, PageHeader, PosBadge, Select, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, InjuryBadge, PageHeader, PosBadge, Select, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { PlayerProfile } from "@/components/player-modals";
 import { cn, fmt } from "@/lib/utils";
@@ -89,7 +89,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title={data.team.name} sub={<>{data.team.manager} · lineup editor <SimBadge /></>}
+      <PageHeader title={data.team.name} sub={<>{data.team.manager} · lineup editor <DataBadge /></>}
         action={<div className="flex flex-wrap items-center gap-2">
           <Select aria-label="View team" value={viewTeam ?? ""} onChange={(e) => { setViewTeam(e.target.value ? Number(e.target.value) : null); setSel(null); }}>
             <option value="">My team</option>{(info?.teams ?? []).filter((t: any) => !t.is_me).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>

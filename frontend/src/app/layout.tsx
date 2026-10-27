@@ -9,7 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "FantaBall - fantasy sports analytics",
-  description: "Draft, manage and analyse your fantasy league. Demo data is simulated.",
+  description: "Draft, manage and analyse your fantasy league. Real NBA data.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

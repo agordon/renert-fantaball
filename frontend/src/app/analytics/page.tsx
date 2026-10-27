@@ -4,7 +4,7 @@ import { CartesianGrid, ReferenceLine, ResponsiveContainer, Scatter, ScatterChar
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, ErrorBox, PageHeader, Select, SimBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, Select, DataBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { WeeklyChart } from "@/components/charts";
 
@@ -28,7 +28,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Analytics" sub={<>League and roster analysis <SimBadge /></>} />
+      <PageHeader title="Analytics" sub={<>League and roster analysis <DataBadge /></>} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Weekly scoring trends"><WeeklyChart data={st.data} /></Card>
         <Card title="Points for vs points against">
@@ -78,7 +78,7 @@ function WhatIf() {
   const players: any[] = data?.players ?? [];
   return (
     <Card className="mt-4" title="What-If machine · start a different player" action={<Badge tone="amber">Foundation</Badge>}>
-      <p className="mb-3 text-xs text-ink3">Pick a past simulated day, a player you started and a player you could have started. FantaBall re-scores that day using saved game logs. Nothing in your league changes.</p>
+      <p className="mb-3 text-xs text-ink3">Pick a past day that has been scored, a player you started and a player you could have started. FantaBall re-scores that day using saved game logs. Nothing in your league changes.</p>
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-xs text-ink3">Day<Select value={day} onChange={(e) => setDay(Number(e.target.value))} className="mt-1 block">{Array.from({ length: league?.current_day ?? 0 }, (_, i) => i + 1).reverse().map((d) => <option key={d} value={d}>Day {d}</option>)}</Select></label>
         <label className="text-xs text-ink3">Instead of (started)<Select value={outId} onChange={(e) => setOut(e.target.value)} className="mt-1 block"><option value="">Choose…</option>{players.filter((p) => p.slot !== "BN" && p.slot !== "IR").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></label>

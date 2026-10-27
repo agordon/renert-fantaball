@@ -7,59 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from root import db
 from models.fantasy import (Athlete, DataSyncRun, GameStat, PlayerFantasyScore, ProGame, ProTeam, ScoringRuleSet, Sport)
 from fantaball.nba import ingest
-from fantaball.nba.mock import MockNBAProvider
+from tests.helpers import TODAY, count, full_import
+from tests.mock_provider import MockNBAProvider
 from fantaball.nba.provider import ProviderUnavailable
-
-TODAY = date(2026, 10, 27)
-
-
-def wipe_real_nba():
-    """Remove the real-data sport and everything that points at it (leagues included) so tests are independent."""
-    from models import fantasy as m
-    sport = db.session.scalar(db.select(Sport).where(Sport.code == "nba"))
-    db.session.execute(db.delete(m.DataSyncRun))
-    if sport is not None:
-        leagues = db.select(m.League.id).where(m.League.sport_id == sport.id)
-        teams = db.select(m.FantasyTeam.id).where(m.FantasyTeam.league_id.in_(leagues))
-        sessions = db.select(m.DraftSession.id).where(m.DraftSession.league_id.in_(leagues))
-        offers = db.select(m.TradeOffer.id).where(m.TradeOffer.league_id.in_(leagues))
-        # children first (picks / items / queue reference rows that are deleted further down)
-        db.session.execute(db.delete(m.DraftPick).where(m.DraftPick.session_id.in_(sessions)))
-        db.session.execute(db.delete(m.TradeItem).where(m.TradeItem.offer_id.in_(offers)))
-        db.session.execute(db.delete(m.DraftQueueItem).where(m.DraftQueueItem.team_id.in_(teams)))
-        db.session.execute(db.delete(m.TeamPeriodScore).where(m.TeamPeriodScore.league_id.in_(leagues)))
-        for model in (m.DailyScore, m.Matchup, m.RosterSlot, m.PlayerTransaction, m.TradeOffer, m.WaiverClaim, m.Activity, m.DraftSession):
-            db.session.execute(db.delete(model).where(model.league_id.in_(leagues)))
-        db.session.execute(db.delete(m.FantasyTeam).where(m.FantasyTeam.league_id.in_(leagues)))
-        db.session.execute(db.delete(m.ScoringConfig).where(m.ScoringConfig.league_id.in_(leagues)))
-        db.session.execute(db.delete(m.League).where(m.League.sport_id == sport.id))
-        db.session.commit()
-        ingest.purge_sport_data(sport)
-    db.session.commit()
-
-
-@pytest.fixture()
-def world(flask_app, monkeypatch):
-    monkeypatch.setenv("FLASK_FAKE_TODAY", TODAY.isoformat())
-    with flask_app.app_context():
-        wipe_real_nba()
-        yield
-        db.session.rollback()
-        wipe_real_nba()
-
-
-def full_import(provider):
-    ingest.job_teams_players(provider)
-    ingest.job_schedule(provider, season=2026)
-    return ingest.job_stats(provider)
-
-
-def count(model, *where):
-    """Row count restricted to the mock-provider (real-sport) rows - the demo world lives in the same tables."""
-    scope = {ProTeam: ProTeam.provider == "mock", Athlete: Athlete.provider == "mock", ProGame: ProGame.provider == "mock", GameStat: GameStat.source == "mock",
-             PlayerFantasyScore: PlayerFantasyScore.athlete_id.in_(db.select(Athlete.id).where(Athlete.provider == "mock"))}
-    return db.session.scalar(db.select(db.func.count(model.id)).where(scope[model], *where))
-
 
 # ------------------------------------------------------------------ players & teams
 def test_import_teams_and_players_is_idempotent_and_safe_with_missing_data(world):

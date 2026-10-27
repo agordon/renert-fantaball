@@ -1,6 +1,6 @@
 /** Typed shapes of the Flask API responses used by the data / admin / player pages. */
 
-export type DataSource = "demo" | "balldontlie" | "mock";
+export type DataSource = string;       // the provider that supplied the data, e.g. "balldontlie"
 
 export interface SyncRun {
   id: number;
@@ -20,7 +20,7 @@ export interface SyncRun {
 }
 
 export interface DataStatus {
-  provider: { provider: string; configured: boolean; is_mock: boolean; requests_per_minute: number; demo_data: boolean; message: string | null };
+  provider: { provider: string; configured: boolean; requests_per_minute: number; message: string | null };
   data_source: string;
   season: number;
   season_start: string | null;
@@ -37,7 +37,6 @@ export interface DataStatus {
   running: boolean;
   limitations: string[];
   has_real_data: boolean;
-  demo_data_enabled: boolean;
   is_admin: boolean;
   onboarding: string | null;
 }
@@ -88,7 +87,6 @@ export interface RecentPerformance {
 
 export interface DataBlock {
   source: DataSource;
-  simulated: boolean;
   season: number | null;
   last_sync: string | null;
   stats_as_of: string | null;

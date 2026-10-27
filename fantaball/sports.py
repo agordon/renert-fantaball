@@ -1,4 +1,4 @@
-"""Sport registry: everything that differs between NBA / NHL / NFL lives here.
+"""Sport registry: everything that differs between sports (NBA now, NHL / NFL later) lives here.
 
 The rest of the app (scoring, roster rules, draft, trades) only reads these
 definitions, so adding a sport = adding one entry to SPORTS (+ a data provider).
@@ -24,29 +24,12 @@ SPORTS = {
         "season_days": 77,        # 11 weeks of 7 days
         "days_per_week": 7,
     },
-    "nhl": {
-        "name": "NHL Hockey",
-        "positions": ["C", "LW", "RW", "D", "G"],
-        "stats": {"g": "G", "a": "A", "sog": "SOG", "hit": "HIT", "blk": "BLK", "sv": "SV", "ga": "GA", "w": "W"},
-        "default_scoring": {"g": 6.0, "a": 4.0, "sog": 0.9, "hit": 0.5, "blk": 1.0, "sv": 0.2, "ga": -3.0, "w": 5.0},
-        "roster": [("C", 2), ("LW", 2), ("RW", 2), ("D", 4), ("G", 2), ("BN", 3), ("IR", 1)],
-        "slot_positions": {"C": ["C"], "LW": ["LW"], "RW": ["RW"], "D": ["D"], "G": ["G"]},
-        "season_days": 77,
-        "days_per_week": 7,
-    },
 }
 
-# "nba" is the REAL-data sport (filled by the data pipeline); "nba_demo" is the same game with SIMULATED fictional data.
-# Both share one rule definition. Season length differs: the real NBA regular season is ~24 weeks.
-SPORTS["nba_demo"] = {**SPORTS["nba"], "name": "NBA Basketball (simulated demo)"}
+# The real NBA regular season is ~24 weeks. (Other sports: add an entry above + a data provider, see README.)
 SPORTS["nba"] = {**SPORTS["nba"], "season_days": 168}      # 24 weeks of 7 days
 
-PLAYABLE_SPORTS = ["nba", "nba_demo"]   # leagues can only be created for these (NHL is a demo dataset for now)
-
-
-def family(code: str) -> str:
-    """'nba_demo' -> 'nba' (the underlying game, independent of where its data comes from)."""
-    return code.split("_")[0]
+PLAYABLE_SPORTS = ["nba"]
 
 
 def get_sport(code: str) -> dict:

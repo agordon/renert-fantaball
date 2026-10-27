@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Loader2, X, AlertTriangle, FlaskConical, Radio } from "lucide-react";
+import { Loader2, X, AlertTriangle, Radio } from "lucide-react";
 import { useApp } from "@/lib/league-context";
 import { cn } from "@/lib/utils";
 
@@ -74,21 +74,10 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () =
   );
 }
 
-/** Badge for an explicit data source ("demo" | "mock" | "balldontlie"), independent of the selected league. */
-export function SourceBadge({ source }: { source: string | null | undefined }) {
-  if (!source) return null;
-  if (source === "demo") return <SimBadge force />;
-  if (source === "mock") return <SimBadge force text="MOCK data - not real NBA statistics" />;
-  return <span className="inline-flex items-center gap-1 rounded border border-teal/30 bg-teal/10 px-1.5 py-0.5 text-[11px] text-teal"><Radio className="h-3 w-3" />Real NBA data</span>;
-}
-
-/** Says where the numbers come from: simulated demo world (amber), mock provider (amber) or real provider data (teal). */
-export function SimBadge({ text = "Simulated demo data", force = false }: { text?: string; force?: boolean }) {
+/** Names where the numbers come from (taken from the league, or passed explicitly). */
+export function DataBadge({ source }: { source?: string | null }) {
   const { league } = useApp();
-  if (!force && !league) return null;            // outside a league the page shows a SourceBadge for its own data set
-  const amber = (t: string) => <span className="inline-flex items-center gap-1 rounded border border-amber/30 bg-amber/10 px-1.5 py-0.5 text-[11px] text-amber"><FlaskConical className="h-3 w-3" />{t}</span>;
-  if (force || !league || league.is_simulated) return amber(text);
-  if (league.is_mock) return amber("MOCK data - not real NBA statistics");
+  if (!(source ?? league?.data_source)) return null;
   return <span className="inline-flex items-center gap-1 rounded border border-teal/30 bg-teal/10 px-1.5 py-0.5 text-[11px] text-teal"><Radio className="h-3 w-3" />Real NBA data</span>;
 }
 

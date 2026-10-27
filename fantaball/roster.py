@@ -77,7 +77,7 @@ def validate_lineup(sport_code, roster_config, assignment: dict, athletes: dict,
         if slot not in capacity:
             raise RosterError(f"'{slot}' is not a slot in this league")
         used[slot] = used.get(slot, 0) + 1
-        if used[slot] > capacity[slot]:
+        if slot != "BN" and used[slot] > capacity[slot]:
             raise RosterError(f"Too many players in slot {slot} (max {capacity[slot]})")
         a = athletes[aid]
         status = a.injury_status(day)
@@ -87,3 +87,7 @@ def validate_lineup(sport_code, roster_config, assignment: dict, athletes: dict,
             raise RosterError(f"{a.name} ({a.positions}) is not eligible for {slot}")
         if slot not in ("BN", "IR") and status != "HEALTHY":
             raise RosterError(f"{a.name} is injured ({status}) and cannot start")
+    # The bench is whatever is left over: a starting slot nobody on the roster can fill stays empty, which frees a bench spot.
+    empty_starting_slots = sum(c for s, c in capacity.items() if s not in ("BN", "IR")) - sum(n for s, n in used.items() if s not in ("BN", "IR"))
+    if used.get("BN", 0) > capacity.get("BN", 0) + empty_starting_slots:
+        raise RosterError(f"Too many players on the bench (max {capacity.get('BN', 0)} plus one per empty starting slot)")

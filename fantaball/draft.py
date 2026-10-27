@@ -22,9 +22,7 @@ from fantaball.sports import SPORTS
 
 
 def draft_day(league: League) -> int:
-    """Stats are used up to this day when valuing players: 0 for the demo world, 'today' for real data."""
-    if league.sport.data_source == "demo":
-        return 0
+    """Statistics are used up to today when valuing players (day 0 before the season starts)."""
     from fantaball import timeline
     return min(timeline.today_day(league.sport), SPORTS[league.sport.code]["season_days"])
 
@@ -141,8 +139,7 @@ def complete_draft(league: League, session: DraftSession):
     session.pick_deadline = None
     league.status = "active"
     league.current_day = day
-    # Real leagues drafted mid-season start scoring TOMORROW (current_day = today's day number) in the current week;
-    # demo leagues start at day 0 / week 1.
+    # A league drafted mid-season starts scoring TOMORROW (current_day = today's day number) in the current week.
     generate_schedule(league, first_week=stats_svc.week_of_day(day + 1, SPORTS[league.sport.code]["days_per_week"]) if day else 1)
     log_activity(league.id, "draft", "The draft is complete - the season is ready to start")
 

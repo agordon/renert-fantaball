@@ -7,7 +7,7 @@ import { useAction } from "@/lib/use-action";
 import { fmt } from "@/lib/utils";
 import type { Player } from "@/lib/types";
 import type { GameLogEntry, RuleSetInfo } from "@/lib/api-types";
-import { Badge, Button, InjuryBadge, Modal, PosBadge, SourceBadge, Select, Spinner } from "@/components/ui";
+import { Badge, Button, InjuryBadge, Modal, PosBadge, DataBadge, Select, Spinner } from "@/components/ui";
 
 const tip = { background: "#1a2028", border: "1px solid #252d38", borderRadius: 6, fontSize: 12 };
 
@@ -50,7 +50,7 @@ export function PlayerProfile({ id, onClose, sport }: { id: number | null; onClo
             <PosBadge positions={p.positions} /><span>{p.team_name}</span>{p.age != null && <span>· age {p.age}</span>}
             {p.height && <span>· {p.height}{p.weight ? `, ${p.weight} lb` : ""}</span>}
             <InjuryBadge status={p.injury} note={p.injury_note} />
-            <SourceBadge source={p.data_source} />
+            <DataBadge source={p.data_source} />
             <span className="ml-auto">{league && fromLeague ? (p.owner_team ? <Badge tone="blue">Owned by {p.owner_team}</Badge> : <Badge tone="good">Free agent</Badge>) : null}</span>
           </div>
           <label className="flex items-center gap-2 text-xs text-ink3">Scoring

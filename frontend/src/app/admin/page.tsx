@@ -63,14 +63,12 @@ export default function AdminPage() {
           <ul className="space-y-1.5 text-sm">
             <li className="flex justify-between"><span className="text-ink3">Provider</span><span className="num">{status.provider.provider}</span></li>
             <li className="flex justify-between"><span className="text-ink3">API key</span>
-              {status.provider.configured ? <Badge tone="good"><CheckCircle2 className="mr-1 h-3 w-3" />{status.provider.is_mock ? "not needed (mock)" : "configured"}</Badge> : <Badge tone="bad"><XCircle className="mr-1 h-3 w-3" />missing</Badge>}</li>
+              {status.provider.configured ? <Badge tone="good"><CheckCircle2 className="mr-1 h-3 w-3" />configured</Badge> : <Badge tone="bad"><XCircle className="mr-1 h-3 w-3" />missing</Badge>}</li>
             <li className="flex justify-between"><span className="text-ink3">Rate limit</span><span className="num">{status.provider.requests_per_minute}/min</span></li>
             <li className="flex justify-between"><span className="text-ink3">Season</span><span className="num">{status.season}-{String(status.season + 1).slice(2)}</span></li>
             <li className="flex justify-between"><span className="text-ink3">Data in database</span><span className="num">{status.has_real_data ? status.data_source : "none"}</span></li>
-            <li className="flex justify-between"><span className="text-ink3">Simulated demo world</span><span>{status.demo_data_enabled ? <Badge tone="amber">enabled</Badge> : <Badge>off</Badge>}</span></li>
           </ul>
           {status.provider.message && <p className="mt-3 text-xs text-amber">{status.provider.message} Add it to <code>.env</code> as <code>BALLDONTLIE_API_KEY=…</code> and restart the backend. The key is never shown here or sent to the browser.</p>}
-          {status.provider.is_mock && <p className="mt-3 text-xs text-amber">MOCK provider: invented data for offline development.</p>}
         </Card>
 
         <Card title="Data freshness">

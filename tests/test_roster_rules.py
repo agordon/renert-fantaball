@@ -58,3 +58,13 @@ def test_validate_lineup_rejects_wrong_position_injured_starter_and_overfull_slo
         validate_lineup("nba", CFG, {1: "PG", 4: "PG"}, ath, 1)         # only one PG slot... 4 is SG-only
     with pytest.raises(RosterError):
         validate_lineup("nba", CFG, {1: "XX"}, ath, 1)                  # unknown slot
+
+
+def test_bench_may_grow_into_a_starting_slot_nobody_can_fill():
+    """No eligible center on the roster: the C slot stays empty, so one extra player may sit on the bench."""
+    ath = {i: FakeAthlete(f"P{i}", pos) for i, pos in enumerate(["PG", "SG", "SF", "PF", "SG", "SF"], start=1)}
+    cfg = [["PG", 1], ["SG", 1], ["SF", 1], ["PF", 1], ["C", 1], ["BN", 1]]
+    ok = {1: "PG", 2: "SG", 3: "SF", 4: "PF", 5: "BN", 6: "BN"}                  # 2 on the bench, 1 bench slot + 1 empty C slot
+    validate_lineup("nba", cfg, ok, ath, 1)
+    with pytest.raises(RosterError):
+        validate_lineup("nba", cfg, {1: "BN", 2: "BN", 3: "BN", 4: "BN", 5: "BN", 6: "PG"}, ath, 1)   # far too many on the bench

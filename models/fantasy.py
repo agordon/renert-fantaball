@@ -22,16 +22,16 @@ class Manager(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(Text, unique=True)
     display_name: Mapped[str] = mapped_column(Text)
-    is_demo_bot: Mapped[bool] = mapped_column(default=False)
+    is_demo_bot: Mapped[bool] = mapped_column(default=False)      # True = computer-controlled manager (fills empty league seats)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class Sport(db.Model):
     __tablename__ = "sports"
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(Text, unique=True)         # "nba" = real data, "nba_demo" / "nhl" = simulated demo worlds
+    code: Mapped[str] = mapped_column(Text, unique=True)         # "nba"
     name: Mapped[str] = mapped_column(Text)
-    data_source: Mapped[str] = mapped_column(Text, default="demo")   # demo | balldontlie | mock  (who supplied the data)
+    data_source: Mapped[str] = mapped_column(Text)               # who supplied the data: "balldontlie" (tests use "mock")
     season: Mapped[int | None]                                   # provider season, e.g. 2026 = the 2026-27 NBA season
     season_start: Mapped[date | None]                            # Monday that is "day 1" of the sim-day numbering
 
@@ -44,7 +44,7 @@ class ProTeam(db.Model):
     abbr: Mapped[str] = mapped_column(Text)
     city: Mapped[str] = mapped_column(Text)
     name: Mapped[str] = mapped_column(Text)
-    provider: Mapped[str | None] = mapped_column(Text)           # e.g. "balldontlie"; NULL for demo data
+    provider: Mapped[str | None] = mapped_column(Text)           # e.g. "balldontlie"
     provider_id: Mapped[int | None]
     conference: Mapped[str | None] = mapped_column(Text)
     division: Mapped[str | None] = mapped_column(Text)
@@ -74,7 +74,6 @@ class Athlete(db.Model):
     injury_start: Mapped[int | None]                        # first sim day missed
     injury_end: Mapped[int | None]                          # first sim day back
     injury_note: Mapped[str | None] = mapped_column(Text)
-    is_simulated: Mapped[bool] = mapped_column(default=True)
     pro_team: Mapped["ProTeam"] = relationship()
     __table_args__ = (UniqueConstraint("sport_id", "provider", "provider_id"),)
 
@@ -103,7 +102,7 @@ class ProGame(db.Model):
     postseason: Mapped[bool] = mapped_column(default=False)
     starts_at: Mapped[datetime | None]                             # scheduled tip-off (UTC, naive)
     game_date: Mapped[date | None]
-    status: Mapped[str] = mapped_column(Text, default="final")     # scheduled | in_progress | final  (demo games: final)
+    status: Mapped[str] = mapped_column(Text, default="scheduled") # scheduled | in_progress | final
     home_score: Mapped[int | None]
     away_score: Mapped[int | None]
     synced_at: Mapped[datetime | None]
@@ -112,7 +111,7 @@ class ProGame(db.Model):
 
 
 class GameStat(db.Model):
-    """An athlete's (simulated) stat line for one game."""
+    """An athlete's box-score line for one game."""
     __tablename__ = "game_stats"
     id: Mapped[int] = mapped_column(primary_key=True)
     athlete_id: Mapped[int] = mapped_column(ForeignKey("athletes.id"))
@@ -137,7 +136,7 @@ class GameStat(db.Model):
     fta: Mapped[int | None]
     pf: Mapped[int | None]
     plus_minus: Mapped[int | None]
-    source: Mapped[str | None] = mapped_column(Text)              # provider name; NULL = demo
+    source: Mapped[str | None] = mapped_column(Text)              # provider name
     provider_stat_id: Mapped[int | None]
     provider_updated_at: Mapped[datetime | None]
     synced_at: Mapped[datetime | None]
@@ -156,7 +155,6 @@ class League(db.Model):
     roster_config: Mapped[list] = mapped_column(db.JSON)              # [["PG",1],...]
     status: Mapped[str] = mapped_column(Text, default="pre_draft")     # pre_draft | drafting | active
     current_day: Mapped[int] = mapped_column(default=0)
-    is_demo: Mapped[bool] = mapped_column(default=False)
     season: Mapped[int | None]
     first_week: Mapped[int] = mapped_column(default=1)            # first scoring week (leagues drafted mid-season start later)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

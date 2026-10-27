@@ -5,11 +5,11 @@ import { ArrowRight, Lightbulb } from "lucide-react";
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, Empty, ErrorBox, PageHeader, SimBadge, Spinner, Stat } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, PageHeader, DataBadge, Spinner, Stat } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import type { DataBlock, RecentPerformance, UpcomingProGame } from "@/lib/api-types";
 import { when } from "@/lib/utils";
-import { SimControls } from "@/components/sim-controls";
+import { ScoredThrough } from "@/components/scored-through";
 
  
 export default function Dashboard() {
@@ -47,7 +47,7 @@ function DashboardInner() {
 
   return (
     <>
-      <PageHeader title="Dashboard" sub={`${league.name} · ${d.team.name}`} action={<SimControls />} />
+      <PageHeader title="Dashboard" sub={`${league.name} · ${d.team.name}`} action={<ScoredThrough />} />
       <DataStrip data={d.data as DataBlock} />
       <div className="grid gap-4 lg:grid-cols-4">
         <Card><Stat label="Record" value={`${rec.w}-${rec.l}${rec.t ? `-${rec.t}` : ""}`} sub={`Streak ${rec.streak}`} /></Card>
@@ -58,7 +58,7 @@ function DashboardInner() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         {m && (
-          <Card className="lg:col-span-2" title={`Week ${m.week} matchup`} action={<SimBadge />}>
+          <Card className="lg:col-span-2" title={`Week ${m.week} matchup`} action={<DataBadge />}>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-2">
               <div><div className="text-xs text-ink3">{d.team.name}</div><div className="num text-3xl font-semibold text-teal">{m.my_points.toFixed(1)}</div><div className="text-xs text-ink3">proj. <span className="num">{m.my_projected.toFixed(0)}</span></div></div>
               <div className="text-xs text-ink3">vs</div>
@@ -88,7 +88,7 @@ function DashboardInner() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2" title="Recent weekly scoring" action={<SimBadge />}>
+        <Card className="lg:col-span-2" title="Recent weekly scoring" action={<DataBadge />}>
           {d.recent_scores.length ? (
             <div className="h-56" role="img" aria-label="Bar chart of your weekly points versus your opponents">
               <ResponsiveContainer>
@@ -103,7 +103,7 @@ function DashboardInner() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          ) : <Empty>{league.is_simulated ? "Scores appear after your first completed week. Use “Sim week”." : "Scores appear after your first completed week of real games (they update with each data sync)."}</Empty>}
+          ) : <Empty>Scores appear after your first completed week of real games (they update with each data sync).</Empty>}
         </Card>
         <Card title="Upcoming games for your starters">
           {d.upcoming_games.map((day: any) => (
@@ -116,14 +116,14 @@ function DashboardInner() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card title="Upcoming NBA games" action={<SimBadge />}>
+        <Card title="Upcoming NBA games" action={<DataBadge />}>
           {(d.upcoming_nba_games as UpcomingProGame[]).length === 0 ? <Empty>No upcoming games are in the database. Sync the schedule from Data Admin.</Empty> : (
             <ul className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
               {(d.upcoming_nba_games as UpcomingProGame[]).slice(0, 10).map((g, i) => (
                 <li key={i} className="flex items-center justify-between rounded border border-line bg-panel2 px-2 py-1"><span className="num">{g.away} @ {g.home}</span><span className="text-xs text-ink3">{g.date ? g.date.slice(5) : `D${g.day}`}</span></li>))}
             </ul>)}
         </Card>
-        <Card title="Recent player performances" action={<SimBadge />}>
+        <Card title="Recent player performances" action={<DataBadge />}>
           {(d.recent_performances as RecentPerformance[]).length === 0 ? <Empty>No imported box scores yet.</Empty> : (
             <table className="w-full text-sm"><tbody>
               {(d.recent_performances as RecentPerformance[]).map((r, i) => (
@@ -155,10 +155,9 @@ function DashboardInner() {
 /** Where the numbers come from and how old they are (timestamp of the underlying statistics). */
 function DataStrip({ data }: { data: DataBlock }) {
   if (!data) return null;
-  if (data.simulated) return <div className="mb-4 rounded-md border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">Simulated demo data: fictional players and made-up statistics for development. Nothing here is real NBA information.</div>;
   return (
-    <div className={`mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-2 text-xs ${data.source === "mock" ? "border-amber/30 bg-amber/10 text-amber" : "border-line bg-panel text-ink2"}`}>
-      <span className="font-medium">{data.source === "mock" ? "MOCK data (not real NBA statistics)" : "Real NBA data · BALLDONTLIE"}</span>
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink2">
+      <span className="font-medium">Real NBA data · BALLDONTLIE</span>
       {data.season != null && <span>Season {data.season}-{String(data.season + 1).slice(2)}</span>}
       <span>Last data sync: <b className="num text-ink">{data.last_sync ? when(data.last_sync) : "never"}</b></span>
       <span>Statistics as of: <b className="num text-ink">{data.stats_as_of ? when(data.stats_as_of) : "none imported yet"}</b></span>

@@ -1,19 +1,11 @@
-"""Roster edits, add/drop, trades, matchup scoring and persistence on a freshly drafted 4-team league."""
+"""Roster edits, add/drop, trades and authorization on a freshly drafted 4-team league (imported fixture data)."""
 import pytest
 
-from fantaball.scoring import score_stat_line
-
-
-def make_active_league(client, name="Active League", teams=4):
-    _, lg = client.post("/api/leagues", {"sport": "nba_demo", "name": name, "num_teams": teams})
-    lid = lg["id"]
-    client.post(f"/api/leagues/{lid}/draft/start", {})
-    client.post(f"/api/leagues/{lid}/draft/sim", {"to_end": True})
-    return lid
+from tests.helpers import make_active_league
 
 
 @pytest.fixture()
-def league(alice):
+def league(nba_data, alice):
     return make_active_league(alice)
 
 
@@ -50,11 +42,14 @@ def test_lineup_edit_validates_and_persists(alice, league):
 def test_position_eligibility_enforced_on_server(alice, league):
     t = team(alice, league)
     assignment = {p["id"]: p["slot"] for p in t["players"]}
-    # put a player who cannot play C into the C slot
-    c_holder = next(p for p in t["players"] if p["slot"] == "C")
-    wrong = next(p for p in t["players"] if p["slot"] == "BN" and "C" not in p["positions"].split(","))
+    single = ("PG", "SG", "SF", "PF", "C")
+    # find a starter in a single-position slot and a bench player who cannot play that position
+    pair = next(((st, bn) for st in t["players"] if st["slot"] in single for bn in t["players"]
+                 if bn["slot"] == "BN" and st["slot"] not in bn["positions"].split(",")), None)
+    assert pair, "fixture roster should contain an ineligible pairing"
+    starter, bench = pair
     bad = dict(assignment)
-    bad[wrong["id"]], bad[c_holder["id"]] = "C", "BN"
+    bad[bench["id"]], bad[starter["id"]] = starter["slot"], "BN"
     s, res = alice.put(f"/api/leagues/{league}/lineup", {"assignment": {str(k): v for k, v in bad.items()}})
     assert s == 400 and "not eligible" in res["error"]
 
@@ -62,7 +57,7 @@ def test_position_eligibility_enforced_on_server(alice, league):
 def test_cannot_edit_other_teams_or_leagues(alice, bob, league):
     assert bob.put(f"/api/leagues/{league}/lineup", {"assignment": {}})[0] == 403
     assert bob.post(f"/api/leagues/{league}/add-drop", {"add_id": 1})[0] == 403
-    assert bob.post(f"/api/leagues/{league}/simulate", {"days": 1})[0] == 403
+    assert bob.post(f"/api/leagues/{league}/lineup/auto", {})[0] == 403
 
 
 def test_add_drop_ownership_rules(alice, league):
@@ -110,9 +105,10 @@ def test_trade_preview_and_authorization(alice, bob, league):
     assert bob.post(f"/api/leagues/{league}/trades/analyze", {"to_team_id": bot["id"], "give_ids": give, "get_ids": get})[0] == 403
 
 
-def test_trade_is_atomic_and_only_recipient_can_accept(alice, bob):
+def test_trade_is_atomic_and_only_recipient_can_accept(nba_data, alice, bob):
     # two humans in one league: alice (commissioner) + bob joined into a bot seat
-    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Two Humans", "num_teams": 4})
+    from tests.helpers import FULL_ROSTER
+    _, lg = alice.post("/api/leagues", {"sport": "nba", "name": "Two Humans", "num_teams": 4, "roster_config": FULL_ROSTER})
     lid = lg["id"]
     _, d = alice.get(f"/api/leagues/{lid}")
     assert bob.post("/api/leagues/join", {"code": d["invite_code"]})[0] == 200
@@ -146,25 +142,7 @@ def test_trade_is_atomic_and_only_recipient_can_accept(alice, bob):
     assert any(o["id"] == oid2 for o in trades["completed"])
 
 
-def test_simulation_scores_use_league_rules_and_persist(alice):
-    lid = make_active_league(alice, "Sim League")
-    assert alice.post(f"/api/leagues/{lid}/simulate", {"days": 3})[0] == 200
-    _, m = alice.get(f"/api/leagues/{lid}/matchup")
-    side = m["matchup"]["home"] if m["matchup"]["home"]["team_id"] == m["my_team_id"] else m["matchup"]["away"]
-    assert side["points"] == round(sum(p["points"] for p in side["players"]), 1)
-    assert side["points"] > 0
-    # recompute one starter's points from his raw game log with the league's scoring rules
-    _, detail = alice.get(f"/api/leagues/{lid}")
-    rules = detail["scoring_rules"]
-    starter = next(p for p in side["players"] if p["slot"] not in ("BN", "IR") and p["points"] > 0)
-    _, prof = alice.get(f"/api/leagues/{lid}/players/{starter['athlete_id']}")
-    days = {int(d) for d in starter["daily"]}
-    expected = sum(score_stat_line(g["stats"], rules) for g in prof["game_log"] if g["day"] in days)
-    assert round(expected, 1) == starter["points"]
-    assert alice.get(f"/api/leagues/{lid}")[1]["current_day"] == 3
-
-
-def test_origin_and_content_type_checks(flask_app, demo):
+def test_origin_and_content_type_checks(flask_app, local):
     c = flask_app.test_client()
     r = c.patch("/api/me", json={"display_name": "Evil"}, headers={"Origin": "http://evil.example"})
     assert r.status_code == 403
@@ -173,4 +151,4 @@ def test_origin_and_content_type_checks(flask_app, demo):
     r = c.patch("/api/me", json={"display_name": "Demo Coach"}, headers={"Origin": "http://localhost:3000"})
     assert r.status_code == 200
     assert r.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
-    assert demo.patch("/api/me", {"display_name": "<>"})[0] == 400
+    assert local.patch("/api/me", {"display_name": "<>"})[0] == 400

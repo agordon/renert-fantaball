@@ -66,7 +66,7 @@ function Brand() {
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { me, league, loading, error, reload } = useApp();
+  const { me, loading, error, reload } = useApp();
   const [open, setOpen] = React.useState(false);
   const path = usePathname();
   React.useEffect(() => setOpen(false), [path]);
@@ -95,7 +95,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 px-4 py-6 lg:px-8">
         <div className="mx-auto max-w-[1280px]">
           {loading ? <Spinner /> : error ? <ErrorBox message={error} onRetry={reload} /> : <div className="fade-in">{children}</div>}
-          {league?.is_demo && <p className="mt-10 text-center text-[11px] text-ink3">All players, schedules and statistics in FantaBall are simulated demo data, not real NBA information.</p>}
         </div>
       </main>
     </div>
@@ -109,7 +108,7 @@ function UserBox({ me }: { me: ReturnType<typeof useApp>["me"] }) {
       <div className="grid h-8 w-8 place-items-center rounded-full bg-panel2 text-sm font-semibold text-teal">{me.display_name[0]?.toUpperCase()}</div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{me.display_name}</div>
-        <div className="text-[11px] text-ink3">{me.auth_mode === "demo" ? "Demo account" : "Signed in"}</div>
+        <div className="text-[11px] text-ink3">{me.auth_mode === "local" ? "Local login" : "Signed in"}</div>
       </div>
       {me.logout_url && <a href={me.logout_url} aria-label="Log out" className="rounded p-1.5 text-ink3 hover:bg-panel2 hover:text-ink"><LogOut className="h-4 w-4" /></a>}
     </div>

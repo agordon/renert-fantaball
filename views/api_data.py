@@ -85,7 +85,7 @@ def data_status(me):
                 season_start=sport.season_start.isoformat() if sport and sport.season_start else None, today=timeline.today().isoformat(),
                 counts=counts, last_success=_run_json(last_success) if last_success else None, last_attempt=_run_json(last_attempt) if last_attempt else None,
                 last_by_job=last_by_job, failures=failures, freshness_seconds=freshness_seconds, running=running, limitations=limitations,
-                has_real_data=bool(sport and counts["players"]), demo_data_enabled=bool(current_app.config.get("DEMO_DATA")), is_admin=is_admin(me),
+                has_real_data=bool(sport and counts["players"]), is_admin=is_admin(me),
                 onboarding=None if (sport and counts["players"]) else
                 "No real NBA data has been imported yet. Set BALLDONTLIE_API_KEY in .env, then run `npm run sync` (or use the sync controls on the Data Admin page).")
 
