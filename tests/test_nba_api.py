@@ -62,6 +62,10 @@ def test_admin_sync_validates_input_and_reports_real_results(world, admin):
     assert run["status"] == "success" and run["inserted"] == 42
     s, run = admin.post("/api/admin/sync", {"job": "stats"})
     assert run["status"] == "success" and run["inserted"] == 24 * 16
+    # re-importing a date range changes nothing when the provider's numbers did not change
+    s, run = admin.post("/api/admin/sync", {"job": "stats", "start": "2026-10-19", "end": "2026-10-21"})
+    assert run["status"] == "success" and run["inserted"] == 0 and run["updated"] == 0
+    assert admin.post("/api/admin/sync", {"job": "stats", "start": "2026-01-01", "end": "2026-12-31"})[0] == 400
 
 
 def test_second_sync_is_rejected_while_one_is_running(world, admin):

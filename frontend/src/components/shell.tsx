@@ -2,9 +2,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, Gavel, LayoutDashboard, LogOut, Menu, Repeat, Settings, Swords, Trophy, Users, UserSquare2, X, Zap, ListOrdered } from "lucide-react";
+import { Activity, BarChart3, Database, Gavel, LayoutDashboard, LogOut, Menu, Repeat, Settings, Swords, Trophy, Users, UserSquare2, X, Zap, ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useApp } from "@/lib/league-context";
+import { useApiData, useApp } from "@/lib/league-context";
+import type { SportInfo } from "@/lib/api-types";
 import { ErrorBox, Spinner } from "@/components/ui";
 
 const NAV = [
@@ -23,9 +24,11 @@ const NAV = [
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
   const path = usePathname();
+  const { me } = useApp();
+  const items = me?.is_admin ? [...NAV, { href: "/admin", label: "Data Admin", icon: Database }] : NAV;
   return (
     <nav aria-label="Primary" className="flex flex-col gap-0.5 px-2">
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? path === "/" : path.startsWith(href);
         return (
           <Link key={href} href={href} onClick={onClick} aria-current={active ? "page" : undefined}
@@ -116,9 +119,12 @@ function UserBox({ me }: { me: ReturnType<typeof useApp>["me"] }) {
 /** Pages that need a league show this when the user has none selected. */
 export function NeedLeague({ children }: { children: React.ReactNode }) {
   const { league } = useApp();
+  const { data: sports } = useApiData<SportInfo[]>(league ? null : "/sports");
+  const noData = !!sports && !sports.some((s) => s.available);
   if (!league) return (
     <div className="rounded-lg border border-dashed border-line p-10 text-center">
       <p className="text-ink2">You are not in a league yet.</p>
+      {noData && <p className="mx-auto mt-2 max-w-xl text-sm text-amber">No player data has been imported yet, so a league cannot be created. Set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code> (administrators can also use the Data Admin page).</p>}
       <Link href="/leagues" className="mt-3 inline-block rounded-md bg-teal px-4 py-2 text-sm font-semibold text-[#04201c]">Create or join a league</Link>
     </div>
   );

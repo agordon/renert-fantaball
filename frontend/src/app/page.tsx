@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import { useAction } from "@/lib/use-action";
 import { Badge, Button, Card, Empty, ErrorBox, PageHeader, SimBadge, Spinner, Stat } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
+import type { DataBlock, RecentPerformance, UpcomingProGame } from "@/lib/api-types";
+import { when } from "@/lib/utils";
 import { SimControls } from "@/components/sim-controls";
 
  
@@ -46,6 +48,7 @@ function DashboardInner() {
   return (
     <>
       <PageHeader title="Dashboard" sub={`${league.name} · ${d.team.name}`} action={<SimControls />} />
+      <DataStrip data={d.data as DataBlock} />
       <div className="grid gap-4 lg:grid-cols-4">
         <Card><Stat label="Record" value={`${rec.w}-${rec.l}${rec.t ? `-${rec.t}` : ""}`} sub={`Streak ${rec.streak}`} /></Card>
         <Card><Stat label="Standing" value={`#${rec.rank}`} sub={rec.playoff ? "In playoff position" : "Outside playoff line"} tone={rec.playoff ? "good" : undefined} /></Card>
@@ -100,7 +103,7 @@ function DashboardInner() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          ) : <Empty>Scores appear after your first completed week. Use “Sim week”.</Empty>}
+          ) : <Empty>{league.is_simulated ? "Scores appear after your first completed week. Use “Sim week”." : "Scores appear after your first completed week of real games (they update with each data sync)."}</Empty>}
         </Card>
         <Card title="Upcoming games for your starters">
           {d.upcoming_games.map((day: any) => (
@@ -109,6 +112,24 @@ function DashboardInner() {
               <div className="mt-1 flex flex-wrap gap-1">{day.games.map((g: any, i: number) => <Badge key={i}>{g.player.split(" ")[1]} {g.home ? "vs" : "@"} {g.opponent}</Badge>)}</div>
             </div>
           ))}
+        </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card title="Upcoming NBA games" action={<SimBadge />}>
+          {(d.upcoming_nba_games as UpcomingProGame[]).length === 0 ? <Empty>No upcoming games are in the database. Sync the schedule from Data Admin.</Empty> : (
+            <ul className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+              {(d.upcoming_nba_games as UpcomingProGame[]).slice(0, 10).map((g, i) => (
+                <li key={i} className="flex items-center justify-between rounded border border-line bg-panel2 px-2 py-1"><span className="num">{g.away} @ {g.home}</span><span className="text-xs text-ink3">{g.date ? g.date.slice(5) : `D${g.day}`}</span></li>))}
+            </ul>)}
+        </Card>
+        <Card title="Recent player performances" action={<SimBadge />}>
+          {(d.recent_performances as RecentPerformance[]).length === 0 ? <Empty>No imported box scores yet.</Empty> : (
+            <table className="w-full text-sm"><tbody>
+              {(d.recent_performances as RecentPerformance[]).map((r, i) => (
+                <tr key={i} className="border-b border-line/50"><td className="py-1">{r.name} <span className="text-[11px] text-ink3">{r.team}</span></td>
+                  <td className="num text-right text-xs text-ink3">{r.line.pts ?? "-"} pts · {r.line.reb ?? "-"} reb · {r.line.ast ?? "-"} ast</td><td className="num w-14 text-right font-semibold text-teal">{r.fp.toFixed(1)}</td></tr>))}
+            </tbody></table>)}
         </Card>
       </div>
 
@@ -127,5 +148,22 @@ function DashboardInner() {
         </Card>
       </div>
     </>
+  );
+}
+
+
+/** Where the numbers come from and how old they are (timestamp of the underlying statistics). */
+function DataStrip({ data }: { data: DataBlock }) {
+  if (!data) return null;
+  if (data.simulated) return <div className="mb-4 rounded-md border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">Simulated demo data: fictional players and made-up statistics for development. Nothing here is real NBA information.</div>;
+  return (
+    <div className={`mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-2 text-xs ${data.source === "mock" ? "border-amber/30 bg-amber/10 text-amber" : "border-line bg-panel text-ink2"}`}>
+      <span className="font-medium">{data.source === "mock" ? "MOCK data (not real NBA statistics)" : "Real NBA data · BALLDONTLIE"}</span>
+      {data.season != null && <span>Season {data.season}-{String(data.season + 1).slice(2)}</span>}
+      <span>Last data sync: <b className="num text-ink">{data.last_sync ? when(data.last_sync) : "never"}</b></span>
+      <span>Statistics as of: <b className="num text-ink">{data.stats_as_of ? when(data.stats_as_of) : "none imported yet"}</b></span>
+      {data.scored_through && <span>Fantasy scoring through: <b className="num text-ink">{data.scored_through}</b></span>}
+      <span className="text-ink3">Scores update after each sync - not live.</span>
+    </div>
   );
 }

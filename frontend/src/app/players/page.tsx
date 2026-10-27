@@ -1,22 +1,47 @@
 "use client";
 import * as React from "react";
 import { ArrowDown, ArrowUp, GitCompare, Plus, Search } from "lucide-react";
-import { useApp, useLeagueData } from "@/lib/league-context";
+import Link from "next/link";
+import { useApiData, useApp } from "@/lib/league-context";
+import type { SportInfo } from "@/lib/api-types";
 import { api } from "@/lib/api";
 import type { Player } from "@/lib/types";
 import { Badge, Button, Card, Empty, ErrorBox, InjuryBadge, Input, Modal, PageHeader, PosBadge, SimBadge, Select, Sparkline, Spinner } from "@/components/ui";
-import { NeedLeague } from "@/components/shell";
 import { AddPlayerModal, PlayerProfile } from "@/components/player-modals";
-import { cn } from "@/lib/utils";
+import { cn, fmt } from "@/lib/utils";
 
  
 const PAGE = 40;
 
 export default function PlayersPage() {
-  return <NeedLeague><Inner /></NeedLeague>;
+  const { league } = useApp();
+  return league ? <Inner /> : <SportScope />;
 }
 
-function Inner() {
+/** Without a league the player database still works: pick which imported data set to browse. */
+function SportScope() {
+  const { data: sports, error, loading } = useApiData<SportInfo[]>("/sports");
+  const [code, setCode] = React.useState("");
+  if (error) return <ErrorBox message={error} />;
+  if (loading || !sports) return <Spinner />;
+  const available = sports.filter((x) => x.available);
+  if (!available.length) {
+    return (
+      <>
+        <PageHeader title="Players" />
+        <Card><div className="space-y-2 text-sm text-ink2">
+          <p className="font-medium text-ink">No player data has been imported yet.</p>
+          <p>An administrator needs to set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page).</p>
+          <p className="text-ink3">The simulated demo players are only available when <code>FLASK_DEMO_DATA=true</code>.</p>
+        </div></Card>
+      </>
+    );
+  }
+  const current = code || available[0].code;
+  return <Inner sport={current} sportChoices={available} onSport={setCode} />;
+}
+
+function Inner({ sport, sportChoices, onSport }: { sport?: string; sportChoices?: SportInfo[]; onSport?: (c: string) => void } = {}) {
   const { league } = useApp();
   const [q, setQ] = React.useState("");
   const [dq, setDq] = React.useState("");
@@ -33,7 +58,8 @@ function Inner() {
 
   React.useEffect(() => { const t = setTimeout(() => { setDq(q); setPage(0); }, 250); return () => clearTimeout(t); }, [q]);
   const qs = new URLSearchParams({ search: dq, pos, team, status, sort, dir, limit: String(PAGE), offset: String(page * PAGE) }).toString();
-  const { data, error, loading, reload } = useLeagueData<any>(`/players?${qs}`);
+  const path = league ? `/leagues/${league.id}/players?${qs}` : `/data/players?sport=${sport}&${qs}`;
+  const { data, error, loading, reload } = useApiData<any>(path, [league?.current_day]);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   const labels: Record<string, string> = data?.stat_labels ?? {};
@@ -47,15 +73,18 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Players" sub={<>Searchable player pool for {league?.name} <SimBadge text="Simulated statistics" /></>}
+      <PageHeader title="Players" sub={<>{league ? `Searchable player pool for ${league.name}` : "Player database"} <DataBadge data={data} /></>}
         action={<Button variant={picked.length >= 2 ? "primary" : "outline"} disabled={picked.length < 2} onClick={() => setComparing(true)}><GitCompare className="h-4 w-4" />Compare ({picked.length}/4)</Button>} />
       <Card pad={false}>
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
           <div className="relative min-w-52 flex-1"><Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-ink3" /><Input aria-label="Search players" className="pl-8" placeholder="Search players…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          {sportChoices && sportChoices.length > 1 && (
+            <Select aria-label="Data set" value={sport} onChange={(e) => { onSport?.(e.target.value); setPage(0); }}>
+              {sportChoices.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</Select>)}
           <Select aria-label="Position" value={pos} onChange={(e) => { setPos(e.target.value); setPage(0); }}><option value="">All positions</option>{(data?.positions ?? []).map((p: string) => <option key={p}>{p}</option>)}</Select>
           <Select aria-label="Pro team" value={team} onChange={(e) => { setTeam(e.target.value); setPage(0); }}><option value="">All teams</option>{(data?.teams ?? []).map((t: any) => <option key={t.abbr} value={t.abbr}>{t.abbr} · {t.name}</option>)}</Select>
           <Select aria-label="Availability" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
-            <option value="all">All players</option><option value="available">Free agents</option><option value="owned">Owned</option><option value="mine">My players</option></Select>
+            {league ? <><option value="all">All players</option><option value="available">Free agents</option><option value="owned">Owned</option><option value="mine">My players</option></> : <option value="all">All players</option>}</Select>
         </div>
         {loading && !data ? <Spinner /> : (
           <div className="overflow-x-auto">
@@ -74,21 +103,21 @@ function Inner() {
                       onChange={(e) => setPicked(e.target.checked ? [...picked, p.id] : picked.filter((x) => x !== p.id))} className="accent-teal" /></td>
                     <td className="p-2"><button className="text-left font-medium hover:text-teal" onClick={() => setProfile(p.id)}>{p.name}</button>
                       <div className="flex items-center text-[11px] text-ink3"><PosBadge positions={p.positions} /><span className="mx-1">·</span>{p.team}<InjuryBadge status={p.injury} /></div></td>
-                    <td className="num p-2 text-right text-ink2">{p.age}</td>
+                    <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td>
                     <td className="num p-2 text-right text-ink2">{p.games_week}</td>
                     <td className="num p-2 text-right text-ink2">{p.gp}</td>
-                    <td className="num p-2 text-right">{p.fpg.toFixed(1)}</td>
-                    <td className="num p-2 text-right">{p.last5.toFixed(1)}</td>
+                    <td className="num p-2 text-right">{fmt(p.fpg)}</td>
+                    <td className="num p-2 text-right">{fmt(p.last5)}</td>
                     <td className="num p-2 text-right font-semibold text-teal">{p.proj.toFixed(1)}</td>
                     {statCols.map((k) => <td key={k} className="num p-2 text-right text-ink2">{p.avg[k]?.toFixed(1) ?? "-"}</td>)}
                     <td className="p-2 text-right"><Sparkline values={p.recent} /></td>
-                    <td className="p-2 text-xs">{p.owner_team ? <span className="text-ink2">{p.owner_team}</span> : <Badge tone="good">FA</Badge>}</td>
-                    <td className="p-2">{p.available && league?.status === "active" && <Button size="sm" aria-label={`Add ${p.name}`} onClick={() => setAdding(p)}><Plus className="h-3 w-3" /></Button>}</td>
+                    <td className="p-2 text-xs">{!league ? <span className="text-ink3">-</span> : p.owner_team ? <span className="text-ink2">{p.owner_team}</span> : <Badge tone="good">FA</Badge>}</td>
+                    <td className="p-2">{league && p.available && league.status === "active" && <Button size="sm" aria-label={`Add ${p.name}`} onClick={() => setAdding(p)}><Plus className="h-3 w-3" /></Button>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!data?.players.length && <Empty>No players match these filters.</Empty>}
+            {!data?.players.length && <Empty>{data?.empty ? "No players have been imported for this data set yet." : "No players match these filters."}</Empty>}
           </div>
         )}
         <div className="flex items-center justify-between p-3 text-xs text-ink3">
@@ -97,7 +126,7 @@ function Inner() {
             <Button size="sm" disabled={!data || (page + 1) * PAGE >= data.total} onClick={() => setPage(page + 1)}>Next</Button></div>
         </div>
       </Card>
-      <PlayerProfile id={profile} onClose={() => setProfile(null)} labels={labels} />
+      <PlayerProfile id={profile} onClose={() => setProfile(null)} sport={league ? undefined : sport} />
       <AddPlayerModal player={adding} onClose={() => setAdding(null)} onDone={reload} />
       <CompareModal ids={comparing ? picked : null} onClose={() => setComparing(false)} labels={labels} />
     </>
@@ -109,7 +138,7 @@ function CompareModal({ ids, onClose, labels }: { ids: number[] | null; onClose:
   const [players, setPlayers] = React.useState<Player[] | null>(null);
   React.useEffect(() => { setPlayers(null); if (ids && league) api<any>(`/leagues/${league.id}/compare?ids=${ids.join(",")}`).then((d) => setPlayers(d.players)); }, [ids, league]);
   const rows: [string, (p: Player) => number, number][] = [
-    ["Projection (FP/G)", (p) => p.proj, 1], ["Season FP/G", (p) => p.fpg, 1], ["Last 5 FP/G", (p) => p.last5, 1], ["Total FP", (p) => p.total, 0], ["Games played", (p) => p.gp, 0],
+    ["Projection (FP/G)", (p) => p.proj, 1], ["Season FP/G", (p) => p.fpg ?? 0, 1], ["Last 5 FP/G", (p) => p.last5 ?? 0, 1], ["Total FP", (p) => p.total, 0], ["Games played", (p) => p.gp, 0],
     ["Games this week", (p) => p.games_week, 0], ...Object.entries(labels).map(([k, l]) => [l, (p: Player) => p.avg[k] ?? 0, 1] as [string, (p: Player) => number, number]),
   ];
   return (
@@ -126,4 +155,13 @@ function CompareModal({ ids, onClose, labels }: { ids: number[] | null; onClose:
       <p className="mt-3 text-xs text-ink3">Best value in each row is highlighted. All statistics are simulated.</p>
     </Modal>
   );
+}
+
+
+/** Where the displayed statistics come from, from the API response itself (works without a league). */
+function DataBadge({ data }: { data: { data_source?: string; as_of_day?: number } | null }) {
+  if (!data?.data_source) return null;
+  if (data.data_source === "demo") return <SimBadge force text="Simulated statistics" />;
+  if (data.data_source === "mock") return <SimBadge force text="MOCK data - not real NBA statistics" />;
+  return <Badge tone="teal">Real NBA data · BALLDONTLIE</Badge>;
 }

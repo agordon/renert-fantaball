@@ -6,6 +6,10 @@
     "setup": "node scripts/run.mjs setup",
     "dev": "node scripts/run.mjs dev",
     "prod": "node scripts/run.mjs prod",
-    "test": "node scripts/run.mjs test"
+    "test": "node scripts/run.mjs test",
+    "nba": "node scripts/run.mjs nba",
+    "sync": "node scripts/run.mjs nba bootstrap",
+    "sync:daily": "node scripts/run.mjs nba daily",
+    "sync:status": "node scripts/run.mjs nba status"
   }
 }

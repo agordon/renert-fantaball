@@ -63,4 +63,8 @@ else if (mode === "prod") {
   const r = run(python, ["-m", "pytest", "tests", "-q"], { cwd: root });
   const t = run(npm, ["run", "build"], { cwd: frontend });
   process.exit(r.status || t.status || 0);
-} else { console.log("Usage: npm run <setup|dev|prod|test>"); process.exit(1); }
+} else if (mode === "nba") {
+  // npm run sync | sync:daily | sync:status ...  ->  python -m flask --app app nba <command>
+  const r = run(python, ["-m", "flask", "--app", "app", "nba", ...process.argv.slice(3)], { cwd: root });
+  process.exit(r.status ?? 1);
+} else { console.log("Usage: npm run <setup|dev|prod|test|sync|sync:daily|sync:status>"); process.exit(1); }

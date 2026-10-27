@@ -9,7 +9,7 @@ import type { Player } from "@/lib/types";
 import { Badge, Button, Card, ErrorBox, InjuryBadge, PageHeader, PosBadge, Select, SimBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { PlayerProfile } from "@/components/player-modals";
-import { cn } from "@/lib/utils";
+import { cn, fmt } from "@/lib/utils";
 
  
 export default function TeamPage() {
@@ -122,8 +122,8 @@ function Inner() {
                           <div className="flex items-center text-[11px] text-ink3"><PosBadge positions={p.positions} /><span className="mx-1">·</span>{p.team}<InjuryBadge status={p.injury} note={p.injury_note} /></div></div>
                       </div>) : <span className="text-xs text-ink3">{target ? "Move here" : "Empty"}</span>}</td>
                     <td className="num p-2 text-right text-ink2">{p?.games_left_week ?? ""}</td>
-                    <td className="num p-2 text-right">{p ? p.fpg.toFixed(1) : ""}</td>
-                    <td className="num p-2 text-right">{p ? p.last5.toFixed(1) : ""}</td>
+                    <td className="num p-2 text-right">{p ? fmt(p.fpg) : ""}</td>
+                    <td className="num p-2 text-right">{p ? fmt(p.last5) : ""}</td>
                     <td className="num p-2 text-right font-semibold text-teal">{p ? p.proj.toFixed(1) : ""}</td>
                     <td className="p-1">{p && !readOnly && <button aria-label={`Drop ${p.name}`} onClick={(e) => { e.stopPropagation(); dropPlayer(p); }} className="rounded p-1 text-ink3 hover:bg-bad/10 hover:text-bad"><Trash2 className="h-3.5 w-3.5" /></button>}</td>
                   </tr>
@@ -160,7 +160,7 @@ function Inner() {
           </div>
         )}
       </div>
-      <PlayerProfile id={profile} onClose={() => setProfile(null)} labels={{ pts: "PTS", reb: "REB", ast: "AST", stl: "STL", blk: "BLK", tov: "TO", fg3m: "3PM" }} />
+      <PlayerProfile id={profile} onClose={() => setProfile(null)} />
     </>
   );
 }

@@ -145,6 +145,11 @@ def admin_sync(me):
     if job not in JOBS:
         raise bad_request(f"job must be one of: {', '.join(JOBS)}")
     params = _parse_params(d)
+    if job == "stats" and params.get("start"):          # backfill / re-import box scores for a date range
+        first, last = params["start"], params.get("end") or params["start"]
+        if (last - first).days > 60:
+            raise bad_request("Re-import at most 60 days of box scores at a time")
+        params["dates"] = [first + timedelta(days=i) for i in range((last - first).days + 1)]
     cfg = nba_config.provider_status(current_app.config)
     if not cfg["configured"] and job != "scores":
         raise conflict(cfg["message"] or "The data provider is not configured")

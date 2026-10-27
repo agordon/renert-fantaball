@@ -170,3 +170,13 @@ def test_real_players_cannot_be_owned_twice_in_a_league(real_league, alice, bob)
     assert s == 409                                                                   # the league already drafted
     s, res = alice.post(f"/api/leagues/{lid}/add-drop", {"add_id": owned, "drop_id": mine["players"][1]["id"]})
     assert s == 409
+
+
+def test_draft_refuses_to_start_when_the_player_pool_is_too_small(world, alice):
+    full_import(MockNBAProvider(today=date(2026, 10, 27)))                            # 48 draftable players
+    s, lg = alice.post("/api/leagues", {"sport": "nba", "name": "Too Big", "num_teams": 4})   # default roster: 4 x 13 = 52 picks
+    assert s == 201
+    s, res = alice.post(f"/api/leagues/{lg['id']}/draft/start", {})
+    assert s == 409 and "Not enough players" in res["error"]
+    s, state = alice.get(f"/api/leagues/{lg['id']}/draft")
+    assert state["session"] is None and state["league_status"] == "pre_draft"          # nothing half-started

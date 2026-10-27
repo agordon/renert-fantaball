@@ -269,7 +269,7 @@ def player_profile_payload(ctx: AthleteContext, a: Athlete) -> dict:
             entry["opponent"] = teams[g.away_team_id if g.home_team_id == a.pro_team_id else g.home_team_id]
             entry["home"] = g.home_team_id == a.pro_team_id
     return dict(player=ctx.row(a), game_log=log[::-1], upcoming=upcoming_games(ctx.sport, a.pro_team_id, ctx.day, 7),
-                injury_window=dict(start=a.injury_start, end=a.injury_end, note=a.injury_note))
+                stat_labels=SPORTS[ctx.sport.code]["stats"], injury_window=dict(start=a.injury_start, end=a.injury_end, note=a.injury_note))
 
 
 @api("/leagues/<int:league_id>/players/<int:athlete_id>")

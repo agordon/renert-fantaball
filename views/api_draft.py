@@ -4,7 +4,7 @@ from root import db
 from fantaball import draft as draft_svc
 from fantaball import draft_assist
 from fantaball import leagues as league_svc
-from fantaball.errors import conflict, not_found
+from fantaball.errors import ApiError, conflict, not_found
 from fantaball.sports import SPORTS
 from fantaball.pool import pool_query
 from fantaball.lineups import rules_of
@@ -54,7 +54,10 @@ def draft_state(me, league_id):
     session = draft_svc.session_of(lg.id)
     if session and session.status == "live" and draft_svc._expired(session):
         # A human clock ran out: the server auto-picks (queue first, then best value)
-        draft_svc.advance_one(lg, session)
+        try:
+            draft_svc.advance_one(lg, session)
+        except ApiError:
+            db.session.rollback()          # e.g. the player pool ran dry: still show the draft state
     return _state(me, lg, team)
 
 

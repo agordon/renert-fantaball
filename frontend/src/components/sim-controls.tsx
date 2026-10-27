@@ -10,11 +10,14 @@ export function SimControls() {
   const { league, reload } = useApp();
   const { busy, error, run } = useAction();
   if (!league || league.status !== "active") return null;
+  if (!league.is_simulated) {      // real data: leagues are scored automatically after each sync - nothing to simulate
+    return <span className="text-xs text-ink3">Scored through {league.scored_through ?? "the start of the season"} · updates after each data sync</span>;
+  }
   const over = league.current_day >= league.season_days;
   const go = (days: number) => run(async () => { await api(`/leagues/${league.id}/simulate`, { method: "POST", body: { days } }); await reload(); });
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <SimBadge text={`Sim day ${league.current_day}/${league.season_days} · week ${league.current_week}`} />
+      <SimBadge force text={`Sim day ${league.current_day}/${league.season_days} · week ${league.current_week}`} />
       {league.is_commissioner && !over && (
         <>
           <Button size="sm" onClick={() => go(1)} disabled={busy}><Play className="h-3 w-3" />Sim day</Button>

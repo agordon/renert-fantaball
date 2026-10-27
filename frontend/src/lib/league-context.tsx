@@ -47,3 +47,17 @@ export function useLeagueData<T>(path: string | null, deps: unknown[] = []) {
   React.useEffect(() => { setLoading(true); load(); }, [load, league?.current_day, league?.status, ...deps]);
   return { data, error, loading, reload: load, setData };
 }
+
+/** Fetch any API path (no league needed); `path` null = do nothing. Reloads when `deps` change. */
+export function useApiData<T>(path: string | null, deps: unknown[] = []) {
+  const [data, setData] = React.useState<T | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const load = React.useCallback(async () => {
+    if (path === null) return;
+    try { setData(await api<T>(path)); setError(null); } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
+  }, [path]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => { setLoading(true); load(); }, [load, ...deps]);
+  return { data, error, loading, reload: load, setData };
+}

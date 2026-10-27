@@ -3,7 +3,8 @@ import * as React from "react";
 import Link from "next/link";
 import { Bot, Clock, FastForward, Gavel, ListPlus, Play, Search, Sparkles, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/league-context";
+import { useApiData, useApp } from "@/lib/league-context";
+import type { DataStatus } from "@/lib/api-types";
 import { useAction } from "@/lib/use-action";
 import { Badge, Button, Card, Empty, ErrorBox, Input, PageHeader, Select, SimBadge, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
@@ -27,6 +28,7 @@ function Inner() {
   const [picked, setPicked] = React.useState<number | null>(null);
   const act = useAction();
   const lid = league!.id;
+  const { data: dataStatus } = useApiData<DataStatus>(league!.is_simulated ? null : "/data/status");
 
   const load = React.useCallback(async () => {
     try { setSt(await api(`/leagues/${lid}/draft`)); setError(null); } catch (e) { setError((e as Error).message); }
@@ -113,6 +115,9 @@ function Inner() {
           <Button size="sm" onClick={() => simAll(false)} disabled={act.busy || myTurn}><FastForward className="h-3.5 w-3.5" />Sim to my pick</Button>
           <Button size="sm" onClick={() => confirm("Auto-draft every remaining pick, including yours?") && simAll(true)} disabled={act.busy}><Bot className="h-3.5 w-3.5" />Auto-draft the rest</Button></div> : undefined} />
       {(error || act.error) && <div className="mb-3"><ErrorBox message={(act.error ?? error)!} /></div>}
+      {dataStatus && dataStatus.counts.player_game_stats === 0 && (
+        <div role="note" className="mb-3 rounded-md border border-amber/40 bg-amber/10 p-3 text-sm text-amber">No player statistics have been imported yet, so rankings and projections are placeholders (alphabetical). {dataStatus.limitations[0] ?? "Import box scores from the Data Admin page for meaningful values."}</div>
+      )}
 
       <div className={cn("mb-4 flex flex-wrap items-center gap-4 rounded-lg border p-4", myTurn ? "border-teal/60 bg-teal/10" : "border-line bg-panel")}>
         {live ? <>
@@ -152,7 +157,7 @@ function Inner() {
                     <tr key={p.id} onClick={() => setPicked(p.id)} className={cn("cursor-pointer border-t border-line/60 hover:bg-panel2/60", picked === p.id && "bg-blue/15")}>
                       <td className="num p-2 text-ink3">{p.rank}</td>
                       <td className="p-2"><span className="font-medium">{p.name}</span><div className="text-[11px] text-ink3">{p.positions.replace(",", "/")} · {p.team}{p.injury !== "HEALTHY" && <Badge tone="amber" className="ml-1.5">{p.injury}</Badge>}</div></td>
-                      <td className="num p-2 text-right text-ink2">{p.age}</td><td className="num p-2 text-right font-semibold text-teal">{p.proj.toFixed(1)}</td>
+                      <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td><td className="num p-2 text-right font-semibold text-teal">{p.proj.toFixed(1)}</td>
                       <td className="p-2 text-right"><div className="flex justify-end gap-1">
                         <Button size="sm" aria-label={`Queue ${p.name}`} onClick={(e) => { e.stopPropagation(); if (!queue.includes(p.id)) saveQueue([...queue, p.id]); }}><ListPlus className="h-3 w-3" /></Button>
                         <Button size="sm" variant="primary" disabled={!myTurn || act.busy} onClick={(e) => { e.stopPropagation(); doPick(p.id); }}>Draft</Button></div></td>
@@ -165,7 +170,7 @@ function Inner() {
 
         <div className="space-y-4">
           {live && picked && byId.get(picked) && !drafted.has(picked) && (
-            <Card title="Selected player"><div className="flex items-start justify-between"><div><div className="font-medium">{byId.get(picked).name}</div><div className="text-xs text-ink3">{byId.get(picked).positions.replace(",", "/")} · {byId.get(picked).team} · age {byId.get(picked).age} · rank #{byId.get(picked).rank}</div>
+            <Card title="Selected player"><div className="flex items-start justify-between"><div><div className="font-medium">{byId.get(picked).name}</div><div className="text-xs text-ink3">{byId.get(picked).positions.replace(",", "/")} · {byId.get(picked).team} · age {byId.get(picked).age ?? "-"} · rank #{byId.get(picked).rank}</div>
               <div className="mt-1 text-sm">Projected <b className="num text-teal">{byId.get(picked).proj.toFixed(1)}</b> FP/G</div></div>
               <Button variant="primary" disabled={!myTurn || act.busy} onClick={() => doPick(picked)}>Draft</Button></div></Card>
           )}

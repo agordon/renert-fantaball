@@ -14,7 +14,7 @@ from root import db
 from models.fantasy import Athlete, DraftPick, DraftQueueItem, DraftSession, FantasyTeam, League, RosterSlot, utcnow
 from fantaball import stats as stats_svc
 from fantaball.errors import bad_request, conflict, forbidden, not_found
-from fantaball.pool import pool_query
+from fantaball.pool import pool_filter, pool_query
 from fantaball.leagues import fill_with_bots, generate_schedule, log_activity, teams_of
 from fantaball.lineups import rules_of
 from fantaball.roster import optimal_lineup
@@ -67,6 +67,12 @@ def start_draft(league: League, pick_seconds: int = 45) -> DraftSession:
     if not 10 <= pick_seconds <= 300:
         raise bad_request("Pick clock must be between 10 and 300 seconds")
     fill_with_bots(league)
+    needed = league.num_teams * default_rounds(league)
+    available = db.session.scalar(db.select(db.func.count(Athlete.id)).where(*pool_filter(league.sport_id))) or 0
+    if available < needed:
+        db.session.rollback()
+        raise conflict(f"Not enough players to draft: {league.num_teams} teams x {default_rounds(league)} rounds needs {needed} players but only "
+                       f"{available} are available. Import more players, use fewer teams, or shrink the roster.")
     teams = teams_of(league.id)
     order = list(range(1, len(teams) + 1))
     random.Random(f"order-{league.id}-{league.invite_code}").shuffle(order)
@@ -193,6 +199,8 @@ def team_needs(league: League, drafted: list[Athlete]) -> dict[str, int]:
 
 
 def bot_choose(league: League, session: DraftSession, team: FantasyTeam, available: list[Athlete]) -> Athlete:
+    if not available:
+        raise conflict("There are no players left to draft. Import more players, or ask the commissioner to restart with fewer teams.")
     summ = stats_svc.summaries(league.sport_id, rules_of(league), draft_day(league))
     proj = {a.id: summ[a.id]["proj"] for a in available}
     all_ath = available   # replacement levels from the still-available pool keep scarcity realistic
