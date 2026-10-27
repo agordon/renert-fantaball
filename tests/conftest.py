@@ -17,6 +17,10 @@ os.environ["FLASK_SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(_tmp, 
 os.environ["FLASK_JWT_AUTH_DUMMY_USER_IF_NO_PROXY"] = "true"
 os.environ["FLASK_JWT_AUTH_DEBUG"] = "false"
 os.environ["FLASK_DEBUG"] = "false"
+os.environ["FLASK_DEMO_DATA"] = "true"          # tests exercise the explicit demo world
+os.environ["FLASK_SYNC_INLINE"] = "true"        # admin sync runs synchronously in tests
+os.environ["FLASK_ADMIN_EMAILS"] = '["admin@example.com"]'
+os.environ["FLASK_NBA_PROVIDER"] = "mock"
 os.environ["FLASK_CORS_ORIGINS"] = '["http://localhost:3000"]'
 
 
@@ -39,7 +43,10 @@ class Client:
         kw = dict(headers=self.headers)
         if data is not None:
             kw["json"] = data
-        r = getattr(self.c, method)(url, **kw)
+        # A fresh app context per request (like production): otherwise a context held open by the test body would
+        # share flask.g - and with it the cached authenticated user - between requests of different users.
+        with self.c.application.app_context():
+            r = getattr(self.c, method)(url, **kw)
         return r.status_code, r.get_json(silent=True)
 
     def get(self, url):
@@ -82,3 +89,8 @@ def alice(flask_app):
 @pytest.fixture()
 def bob(flask_app):
     return Client(flask_app.test_client(), "bob@example.com")
+
+
+@pytest.fixture()
+def admin(flask_app):
+    return Client(flask_app.test_client(), "admin@example.com")

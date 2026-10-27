@@ -6,7 +6,7 @@ from flask import current_app, jsonify, request
 
 from flask_jwt_auth_manager import current_jwt_user
 from root import app, db
-from models.fantasy import Athlete, FantasyTeam, League, Manager
+from models.fantasy import Athlete, FantasyTeam, GameStat, League, Manager
 from fantaball import stats as stats_svc
 from fantaball.errors import ApiError, bad_request, not_found
 from fantaball.lineups import owner_map, rules_of
@@ -133,40 +133,85 @@ def team_json(t: FantasyTeam, me: Manager | None = None) -> dict:
 
 def league_json(league: League, me: Manager, team: FantasyTeam | None = None) -> dict:
     sp = SPORTS[league.sport.code]
+    simulated = league.sport.data_source == "demo"
     return dict(id=league.id, name=league.name, sport=league.sport.code, sport_name=league.sport.name, format=league.format,
                 num_teams=league.num_teams, status=league.status, current_day=league.current_day,
                 current_week=stats_svc.week_of_day(league.current_day + 1, sp["days_per_week"]),
                 season_days=sp["season_days"], season_weeks=sp["season_days"] // sp["days_per_week"],
-                is_demo=league.is_demo, is_commissioner=league.commissioner_id == me.id, my_team_id=team.id if team else None)
+                is_demo=league.is_demo, is_commissioner=league.commissioner_id == me.id, my_team_id=team.id if team else None,
+                data_source=league.sport.data_source, is_simulated=simulated, is_mock=league.sport.data_source == "mock",
+                season=league.season, auto_scored=not simulated,
+                scored_through=_date_of_day(league.sport, league.current_day) if not simulated else None)
+
+
+def _date_of_day(sport, day: int):
+    from fantaball import timeline
+    if sport.season_start is None or day < 1:
+        return None
+    return timeline.date_of(sport, day).isoformat()
 
 
 class AthleteContext:
-    """Per-request bundle so athlete rows for one league are cheap to build."""
+    """Per-request bundle so athlete rows are cheap to build. Works for a league (ownership, league scoring rules) or,
+    with league=None, for a whole sport browsed without a league (stored scoring rule set `ruleset`)."""
 
-    def __init__(self, league: League, day: int | None = None):
+    def __init__(self, league: League | None = None, day: int | None = None, *, sport=None, ruleset=None):
         self.league = league
-        self.day = league.current_day if day is None else day
-        self.summ = stats_svc.summaries(league.sport_id, rules_of(league), self.day)
-        self.owners = owner_map(league.id)
-        self.team_names = {t.id: t.name for t in db.session.scalars(db.select(FantasyTeam).where(FantasyTeam.league_id == league.id))}
-        sp = SPORTS[league.sport.code]
+        self.sport = league.sport if league else sport
+        self.sport_id = self.sport.id
+        if league is not None:
+            self.day = league.current_day if day is None else day
+            self.rules = rules_of(league)
+            self.owners = owner_map(league.id)
+            self.team_names = {t.id: t.name for t in db.session.scalars(db.select(FantasyTeam).where(FantasyTeam.league_id == league.id))}
+        else:
+            self.day = sport_day(self.sport) if day is None else day
+            self.rules = ruleset.rules
+            self.owners, self.team_names = {}, {}
+        self.summ = stats_svc.summaries(self.sport_id, self.rules, self.day)
+        sp = SPORTS[self.sport.code]
         self.week = stats_svc.week_of_day(self.day + 1, sp["days_per_week"])
         self.week_first, self.week_last = stats_svc.week_bounds(self.week, sp["days_per_week"])
 
     def row(self, a: Athlete, full=False) -> dict:
         s = self.summ[a.id]
         owner = self.owners.get(a.id)
-        out = dict(
+        status = a.injury_status(self.day + 1)
+        return dict(
             id=a.id, name=a.name, positions=a.positions, team=a.pro_team.abbr, team_name=f"{a.pro_team.city} {a.pro_team.name}", age=a.age,
-            rank=a.rank, injury=a.injury_status(self.day + 1), injury_note=a.injury_note if a.injury_status(self.day + 1) != "HEALTHY" else None,
+            rank=a.rank, injury=status, injury_note=a.injury_note if status != "HEALTHY" else None,
             gp=s["gp"], avg=s["avg"], total=s["total"], fpg=s["fpg"], last5=s["last5"], proj=s["proj"],
             owner_team_id=owner, owner_team=self.team_names.get(owner), available=owner is None,
-            games_week=stats_svc.games_in_window(self.league.sport_id, a.pro_team_id, self.week_first, self.week_last),
-            games_left_week=stats_svc.games_in_window(self.league.sport_id, a.pro_team_id, max(self.week_first, self.day + 1), self.week_last),
-            recent=[r["fp"] for r in s["recent"]],
-            simulated=True,
+            games_week=stats_svc.games_in_window(self.sport_id, a.pro_team_id, self.week_first, self.week_last),
+            games_left_week=stats_svc.games_in_window(self.sport_id, a.pro_team_id, max(self.week_first, self.day + 1), self.week_last),
+            recent=[r["fp"] for r in s["recent"]], simulated=self.sport.data_source == "demo", data_source=self.sport.data_source,
+            height=a.height, weight=a.weight, active=a.active,
         )
-        return out
+
+
+def sport_day(sport) -> int:
+    """'Now' for a sport browsed without a league: last day with scored games (real) / last simulated day with stats (demo)."""
+    from fantaball import timeline
+    if sport.data_source == "demo":
+        return db.session.scalar(db.select(db.func.max(GameStat.day)).join(Athlete, Athlete.id == GameStat.athlete_id).where(Athlete.sport_id == sport.id)) or 0
+    from fantaball.nba import league_sync
+    return league_sync.completed_through_day(sport)
+
+
+def admin_emails() -> set[str]:
+    raw = current_app.config.get("ADMIN_EMAILS") or []
+    if isinstance(raw, str):
+        raw = [x for x in raw.replace(";", ",").split(",")]
+    return {str(e).strip().lower() for e in raw if str(e).strip()}
+
+
+def is_admin(me: Manager) -> bool:
+    return me.email.lower() in admin_emails()
+
+
+def require_admin(me: Manager):
+    if not is_admin(me):
+        raise ApiError("Administrator access required", 403)
 
 
 def get_athlete(athlete_id: int) -> Athlete:

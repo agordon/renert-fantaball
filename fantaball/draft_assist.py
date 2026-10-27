@@ -11,7 +11,7 @@ import math
 from root import db
 from models.fantasy import DraftPick, DraftSession, FantasyTeam, League
 from fantaball import stats as stats_svc
-from fantaball.draft import (available_athletes, replacement_levels, slots_per_position, snake_team_slot, team_needs, value_over_replacement)
+from fantaball.draft import (available_athletes, draft_day, replacement_levels, slots_per_position, snake_team_slot, team_needs, value_over_replacement)
 from fantaball.lineups import rules_of
 from fantaball.sports import SPORTS
 
@@ -41,7 +41,8 @@ def assistant(league: League, session: DraftSession, team: FantasyTeam) -> dict:
     sc = league.sport.code
     positions = SPORTS[sc]["positions"]
     available = available_athletes(league, session)
-    summ = stats_svc.summaries(league.sport_id, rules_of(league), 0)
+    dday = draft_day(league)
+    summ = stats_svc.summaries(league.sport_id, rules_of(league), dday)
     proj = {a.id: summ[a.id]["proj"] for a in available}
     levels = replacement_levels(league, available, proj)
     mine = [p.athlete for p in db.session.scalars(db.select(DraftPick).where(DraftPick.session_id == session.id, DraftPick.team_id == team.id))]
@@ -58,7 +59,7 @@ def assistant(league: League, session: DraftSession, team: FantasyTeam) -> dict:
         reasons = [f"{vor[a.id]:+.1f} pts/game over a replacement-level {a.position_list[0]}"]
         if need:
             reasons.append(f"fills an open {'/'.join(need)} starting spot")
-        if a.injury_status(1) != "HEALTHY":
+        if a.injury_status(dday + 1) != "HEALTHY":
             reasons.append(f"injury risk: {a.injury_note}")
         return dict(id=a.id, name=a.name, positions=a.positions, team=a.pro_team.abbr, rank=a.rank, proj=proj[a.id], vor=vor[a.id],
                     fills_need=bool(need), survive_prob=survive_probability(idx, between), reasons=reasons)

@@ -11,14 +11,31 @@ Shrinking toward the prior stops a 2-game hot streak from looking like a superst
 import json
 
 from root import db
-from models.fantasy import Athlete, GameStat, ProGame
-from fantaball.scoring import score_stat_line
+from models.fantasy import Athlete, GameStat, ProGame, Sport
+from fantaball.pool import pool_filter
+from fantaball.scoring import score_decimal, score_stat_line
 
 PRIOR_GAMES = 8
 
-_log_cache: dict = {}        # sport_id -> {athlete_id: [(day, stats), ...]}
-_sched_cache: dict = {}      # sport_id -> {pro_team_id: [days]}
-_summary_cache: dict = {}    # (sport_id, rules_key, day) -> summaries
+_log_cache: dict = {}        # sport_id -> (signature, {athlete_id: [(day, stats), ...]})
+_sched_cache: dict = {}      # sport_id -> (signature, {pro_team_id: [days]})
+_summary_cache: dict = {}    # (sport_id, rules_key, day, signature) -> summaries
+
+
+def _log_signature(sport_id: int):
+    """Changes whenever stat rows or athletes are added / re-imported - so caches built before an import (possibly by
+    another process, e.g. the sync CLI) are never served afterwards."""
+    stats = tuple(db.session.execute(
+        db.select(db.func.count(GameStat.id), db.func.max(GameStat.id), db.func.max(GameStat.synced_at))
+        .join(Athlete, Athlete.id == GameStat.athlete_id).where(Athlete.sport_id == sport_id)).one())
+    athletes = tuple(db.session.execute(
+        db.select(db.func.count(Athlete.id), db.func.max(Athlete.id), db.func.max(Athlete.synced_at), db.func.sum(Athlete.rank)).where(Athlete.sport_id == sport_id)).one())
+    return stats + athletes
+
+
+def _sched_signature(sport_id: int):
+    return tuple(db.session.execute(
+        db.select(db.func.count(ProGame.id), db.func.max(ProGame.id), db.func.max(ProGame.synced_at)).where(ProGame.sport_id == sport_id)).one())
 
 
 def clear_cache():
@@ -28,7 +45,8 @@ def clear_cache():
 
 
 def game_log(sport_id: int) -> dict:
-    if sport_id not in _log_cache:
+    sig = _log_signature(sport_id)
+    if sport_id not in _log_cache or _log_cache[sport_id][0] != sig:
         rows = db.session.execute(
             db.select(GameStat.athlete_id, GameStat.day, GameStat.stats)
             .join(Athlete, Athlete.id == GameStat.athlete_id)
@@ -37,25 +55,27 @@ def game_log(sport_id: int) -> dict:
         log = {}
         for aid, day, stats in rows:
             log.setdefault(aid, []).append((day, stats))
-        _log_cache[sport_id] = log
-    return _log_cache[sport_id]
+        _log_cache[sport_id] = (sig, log)
+    return _log_cache[sport_id][1]
 
 
 def team_schedule(sport_id: int) -> dict:
     """{pro_team_id: sorted list of days the team plays}"""
-    if sport_id not in _sched_cache:
+    sig = _sched_signature(sport_id)
+    if sport_id not in _sched_cache or _sched_cache[sport_id][0] != sig:
         sched = {}
         for g in db.session.scalars(db.select(ProGame).where(ProGame.sport_id == sport_id)):
             sched.setdefault(g.home_team_id, []).append(g.day)
             sched.setdefault(g.away_team_id, []).append(g.day)
         for days in sched.values():
             days.sort()
-        _sched_cache[sport_id] = sched
-    return _sched_cache[sport_id]
+        _sched_cache[sport_id] = (sig, sched)
+    return _sched_cache[sport_id][1]
 
 
 def prior_fpg(rank: int, n_players: int) -> float:
-    return 8 + 44 * (1 - (rank - 1) / max(n_players, 1)) ** 1.7
+    share = min(max(1 - (rank - 1) / max(n_players, 1), 0.0), 1.0)      # ranks beyond the pool (inactive / unranked players) floor at the minimum
+    return 8 + 44 * share ** 1.7
 
 
 def projection(rank: int, n_players: int, fps: list[float]) -> float:
@@ -69,28 +89,41 @@ def projection(rank: int, n_players: int, fps: list[float]) -> float:
 
 
 def summaries(sport_id: int, rules: dict, through_day: int) -> dict:
-    """{athlete_id: {gp, avg:{stat:..}, total, fpg, last5, proj, recent:[{day, fp}]}} for every athlete in the sport."""
-    key = (sport_id, json.dumps(rules, sort_keys=True), through_day)
+    """{athlete_id: {gp, gp_scored, avg:{stat:..}, total, fpg, last5, proj, recent:[{day, fp}]}} for every athlete in the sport.
+
+    Missing data is never turned into zero for real (provider) data:
+      * avg[stat] is the mean over games that REPORTED the stat (absent when no game did);
+      * a game whose needed stats were not all reported is not scored (strict Decimal scoring) and is left out of fpg;
+      * fpg / last5 are None when there is nothing to average.
+    The simulated demo world keeps the lenient scoring (absent stat = 0, e.g. hockey skaters have no goalie stats).
+    """
+    log = game_log(sport_id)
+    key = (sport_id, json.dumps(rules, sort_keys=True), through_day, _log_signature(sport_id))
     if key in _summary_cache:
         return _summary_cache[key]
-    log = game_log(sport_id)
+    strict = db.session.scalar(db.select(Sport.data_source).where(Sport.id == sport_id)) != "demo"
     athletes = db.session.execute(db.select(Athlete.id, Athlete.rank).where(Athlete.sport_id == sport_id)).all()
-    n = len(athletes)
+    n = db.session.scalar(db.select(db.func.count(Athlete.id)).where(*pool_filter(sport_id))) or len(athletes)
     out = {}
     for aid, rank in athletes:
         games = [(d, s) for d, s in log.get(aid, []) if d <= through_day]
-        fps = [score_stat_line(s, rules) for _, s in games]
-        gp = len(games)
+        scored = []                                   # (day, fantasy points) for games that could be scored
+        for d, s in games:
+            pts = float(score_decimal(s, rules)) if strict and score_decimal(s, rules) is not None else (None if strict else score_stat_line(s, rules))
+            if pts is not None:
+                scored.append((d, pts))
+        fps = [f for _, f in scored]
         avg = {}
-        if gp:
-            for stat in games[0][1]:
-                avg[stat] = round(sum(s.get(stat, 0) for _, s in games) / gp, 2)
+        for stat in {k for _, s in games for k in s}:
+            vals = [s[stat] for _, s in games if s.get(stat) is not None]
+            if vals:
+                avg[stat] = round(sum(vals) / len(vals), 2)
         out[aid] = dict(
-            gp=gp, avg=avg, total=round(sum(fps), 1),
-            fpg=round(sum(fps) / gp, 2) if gp else 0.0,
-            last5=round(sum(fps[-5:]) / len(fps[-5:]), 2) if gp else 0.0,
+            gp=len(games), gp_scored=len(fps), avg=avg, total=round(sum(fps), 1),
+            fpg=round(sum(fps) / len(fps), 2) if fps else None,
+            last5=round(sum(fps[-5:]) / len(fps[-5:]), 2) if fps else None,
             proj=projection(rank, n, fps),
-            recent=[dict(day=d, fp=f) for (d, _), f in list(zip(games, fps))[-10:]],
+            recent=[dict(day=d, fp=f) for d, f in scored[-10:]],
         )
     if len(_summary_cache) > 40:
         _summary_cache.clear()

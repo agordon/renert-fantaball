@@ -5,7 +5,7 @@ from fantaball.scoring import score_stat_line
 
 
 def make_active_league(client, name="Active League", teams=4):
-    _, lg = client.post("/api/leagues", {"name": name, "num_teams": teams})
+    _, lg = client.post("/api/leagues", {"sport": "nba_demo", "name": name, "num_teams": teams})
     lid = lg["id"]
     client.post(f"/api/leagues/{lid}/draft/start", {})
     client.post(f"/api/leagues/{lid}/draft/sim", {"to_end": True})
@@ -112,7 +112,7 @@ def test_trade_preview_and_authorization(alice, bob, league):
 
 def test_trade_is_atomic_and_only_recipient_can_accept(alice, bob):
     # two humans in one league: alice (commissioner) + bob joined into a bot seat
-    _, lg = alice.post("/api/leagues", {"name": "Two Humans", "num_teams": 4})
+    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Two Humans", "num_teams": 4})
     lid = lg["id"]
     _, d = alice.get(f"/api/leagues/{lid}")
     assert bob.post("/api/leagues/join", {"code": d["invite_code"]})[0] == 200

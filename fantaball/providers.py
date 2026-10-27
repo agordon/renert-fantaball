@@ -10,7 +10,7 @@ and pass it to fantaball.seed.load_world(). Only use sources whose terms allow i
 import math
 import random
 
-from fantaball.sports import SPORTS
+from fantaball.sports import SPORTS, family
 
 
 class DataProvider:
@@ -101,7 +101,8 @@ class DemoProvider(DataProvider):
         self.sport_code = sport_code
         self.seed = seed
         self.cfg = SPORTS[sport_code]
-        self._teams = NBA_TEAMS if sport_code == "nba" else NHL_TEAMS
+        self.family = family(sport_code)
+        self._teams = NBA_TEAMS if self.family == "nba" else NHL_TEAMS
 
     def _rng(self, label):
         return random.Random(f"{self.sport_code}-{self.seed}-{label}")
@@ -113,7 +114,7 @@ class DemoProvider(DataProvider):
     def athletes(self):
         rng = self._rng("athletes")
         n_teams = len(self._teams)
-        if self.sport_code == "nba":
+        if self.family == "nba":
             per_team_positions = ["PG", "PG", "SG", "SG", "SF", "SF", "PF", "PF", "C", "C"]
         else:
             per_team_positions = ["C", "C", "LW", "LW", "RW", "RW", "D", "D", "G"]
@@ -137,7 +138,7 @@ class DemoProvider(DataProvider):
         for i in range(total):
             primary = positions_pool[i]
             positions = [primary]
-            if self.sport_code == "nba" and rng.random() < 0.35:
+            if self.family == "nba" and rng.random() < 0.35:
                 positions.append(ADJACENT[primary])
             athletes.append(dict(
                 name=make_name(), positions=",".join(positions), age=rng.randint(20, 37),
@@ -211,7 +212,7 @@ class DemoProvider(DataProvider):
 
         rows = []
         for ai, a in enumerate(athletes):
-            if self.sport_code == "nba":
+            if self.family == "nba":
                 means = self._nba_means(a, rng)
             else:
                 means = self._nhl_means(a, rng)
@@ -221,7 +222,7 @@ class DemoProvider(DataProvider):
                     continue
                 if is_goalie and rng.random() > 0.62:
                     continue
-                stats = self._nba_line(means, a, rng) if self.sport_code == "nba" else self._nhl_line(means, a, rng)
+                stats = self._nba_line(means, a, rng) if self.family == "nba" else self._nhl_line(means, a, rng)
                 rows.append(dict(athlete_index=ai, game_index=gi, day=day, stats=stats))
         return rows
 

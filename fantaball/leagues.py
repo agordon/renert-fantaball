@@ -3,7 +3,9 @@ import re
 import secrets
 
 from root import db
-from models.fantasy import Activity, FantasyTeam, League, Manager, Matchup, ScoringConfig, Sport
+from models.fantasy import Activity, Athlete, FantasyTeam, League, Manager, Matchup, ScoringConfig, Sport
+from fantaball.pool import pool_filter
+from fantaball.rulesets import get_or_create_ruleset
 from fantaball.errors import bad_request, conflict, forbidden, not_found
 from fantaball.scoring import default_rules, validate_rules
 from fantaball.sports import PLAYABLE_SPORTS, SPORTS
@@ -83,7 +85,7 @@ def clean_roster_config(sport_code: str, cfg) -> list:
     return out
 
 
-def create_league(manager: Manager, name: str, sport_code: str = "nba", num_teams: int = 12, scoring_rules=None,
+def create_league(manager: Manager, name: str, sport_code: str, num_teams: int = 12, scoring_rules=None,
                   roster_config=None, team_name: str | None = None, fill_bots: bool = True, is_demo: bool = False) -> League:
     name = (name or "").strip()
     if not 3 <= len(name) <= 50:
@@ -93,8 +95,10 @@ def create_league(manager: Manager, name: str, sport_code: str = "nba", num_team
     if isinstance(num_teams, bool) or not isinstance(num_teams, int) or not 4 <= num_teams <= 14 or num_teams % 2:
         raise bad_request("Number of teams must be an even number from 4 to 14")
     sport = db.session.scalar(db.select(Sport).where(Sport.code == sport_code))
-    if not sport:
-        raise bad_request("Sport data is not loaded")
+    if not sport or not db.session.scalar(db.select(db.func.count(Athlete.id)).where(*pool_filter(sport.id))):
+        if sport_code == "nba":
+            raise conflict("No real NBA data has been imported yet. An administrator must run the data import first (see Data Administration).")
+        raise bad_request("Data for that sport is not loaded")
     try:
         rules = validate_rules(sport_code, scoring_rules) if scoring_rules is not None else default_rules(sport_code)
     except ValueError as e:
@@ -102,10 +106,10 @@ def create_league(manager: Manager, name: str, sport_code: str = "nba", num_team
     cfg = clean_roster_config(sport_code, roster_config)
 
     league = League(name=name, sport_id=sport.id, commissioner_id=manager.id, invite_code=new_invite_code(),
-                    num_teams=num_teams, roster_config=cfg, is_demo=is_demo)
+                    num_teams=num_teams, roster_config=cfg, is_demo=is_demo, season=sport.season)
     db.session.add(league)
     db.session.flush()
-    db.session.add(ScoringConfig(league_id=league.id, rules=rules))
+    db.session.add(ScoringConfig(league_id=league.id, rules=rules, ruleset_id=get_or_create_ruleset(sport.id, rules).id))
     tname = clean_team_name(team_name or f"{manager.display_name}'s Team")
     db.session.add(FantasyTeam(league_id=league.id, manager_id=manager.id, name=tname))
     db.session.flush()
@@ -172,9 +176,12 @@ def update_settings(manager: Manager, league: League, data: dict) -> League:
         league.name = name
     if "scoring_rules" in data:
         try:
-            league.scoring.rules = validate_rules(league.sport.code, data["scoring_rules"])
+            rules = validate_rules(league.sport.code, data["scoring_rules"])
         except ValueError as e:
             raise bad_request(str(e))
+        # a new rule set is selected (old ones are never edited), so previously stored fantasy scores stay valid
+        league.scoring.rules = rules
+        league.scoring.ruleset_id = get_or_create_ruleset(league.sport_id, rules).id
     if "roster_config" in data:
         league.roster_config = clean_roster_config(league.sport.code, data["roster_config"])
     if "num_teams" in data:
@@ -205,14 +212,18 @@ def round_robin(team_ids: list[int]) -> list[list[tuple[int, int]]]:
     return weeks
 
 
-def generate_schedule(league: League):
+def generate_schedule(league: League, first_week: int = 1):
+    """One matchup per team per week from `first_week` to the end of the season; the round robin repeats if the season is longer."""
     if db.session.scalar(db.select(Matchup.id).where(Matchup.league_id == league.id)):
         return
     season_weeks = SPORTS[league.sport.code]["season_days"] // SPORTS[league.sport.code]["days_per_week"]
-    weeks = round_robin([t.id for t in teams_of(league.id)])[:season_weeks]
-    for w, pairs in enumerate(weeks, start=1):
-        for home, away in pairs:
+    rounds = round_robin([t.id for t in teams_of(league.id)])
+    if first_week == 1:
+        rounds = rounds[:season_weeks] if len(rounds) > season_weeks else rounds
+    for w in range(first_week, season_weeks + 1):
+        for home, away in rounds[(w - first_week) % len(rounds)]:
             db.session.add(Matchup(league_id=league.id, week=w, home_team_id=home, away_team_id=away))
+    league.first_week = first_week
 
 
 def standings(league: League) -> list[dict]:

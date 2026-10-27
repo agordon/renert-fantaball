@@ -6,6 +6,7 @@ from fantaball import draft_assist
 from fantaball import leagues as league_svc
 from fantaball.errors import conflict, not_found
 from fantaball.sports import SPORTS
+from fantaball.pool import pool_query
 from fantaball.lineups import rules_of
 from fantaball import stats as stats_svc
 from views.api_common import api, body, int_arg, int_list, need_int, team_json
@@ -27,18 +28,19 @@ def _state(me, lg, team, include_pool=True) -> dict:
     out["session"] = dict(status=session.status, rounds=session.rounds, current_pick=session.current_pick, total_picks=total,
                           pick_seconds=session.pick_seconds, seconds_left=seconds_left(session.pick_deadline), on_clock_team_id=on_clock.id if on_clock else None,
                           current_round=draft_svc.pick_round(min(session.current_pick, total), lg.num_teams))
-    summ = stats_svc.summaries(lg.sport_id, rules_of(lg), 0)
+    dday = draft_svc.draft_day(lg)
+    summ = stats_svc.summaries(lg.sport_id, rules_of(lg), dday)
     out["picks"] = [dict(overall=p.overall, round=p.round, team_id=p.team_id, auto=p.auto, athlete=dict(
         id=p.athlete_id, name=p.athlete.name, positions=p.athlete.positions, team=p.athlete.pro_team.abbr, proj=summ[p.athlete_id]["proj"])) for p in picks]
     if include_pool:
         taken = {p.athlete_id for p in picks}
         pool = []
         from models.fantasy import Athlete
-        for a in db.session.scalars(db.select(Athlete).where(Athlete.sport_id == lg.sport_id).order_by(Athlete.rank)):
+        for a in db.session.scalars(pool_query(lg.sport_id).order_by(Athlete.rank)):
             if a.id in taken:
                 continue
             s = summ[a.id]
-            st = a.injury_status(1)
+            st = a.injury_status(dday + 1)
             pool.append(dict(id=a.id, name=a.name, positions=a.positions, team=a.pro_team.abbr, age=a.age, rank=a.rank, proj=s["proj"],
                              injury=st, injury_note=a.injury_note if st != "HEALTHY" else None))
         out["pool"] = pool[:POOL_LIMIT]

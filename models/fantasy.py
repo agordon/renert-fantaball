@@ -3,9 +3,10 @@
 The existing 'people' table is left untouched. FantaBall users live in 'managers',
 keyed by the email that the existing JWT auth manager reports.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Text, UniqueConstraint, Index
+from sqlalchemy import ForeignKey, Numeric, Text, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from root import db
@@ -28,8 +29,11 @@ class Manager(db.Model):
 class Sport(db.Model):
     __tablename__ = "sports"
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(Text, unique=True)
+    code: Mapped[str] = mapped_column(Text, unique=True)         # "nba" = real data, "nba_demo" / "nhl" = simulated demo worlds
     name: Mapped[str] = mapped_column(Text)
+    data_source: Mapped[str] = mapped_column(Text, default="demo")   # demo | balldontlie | mock  (who supplied the data)
+    season: Mapped[int | None]                                   # provider season, e.g. 2026 = the 2026-27 NBA season
+    season_start: Mapped[date | None]                            # Monday that is "day 1" of the sim-day numbering
 
 
 class ProTeam(db.Model):
@@ -40,7 +44,12 @@ class ProTeam(db.Model):
     abbr: Mapped[str] = mapped_column(Text)
     city: Mapped[str] = mapped_column(Text)
     name: Mapped[str] = mapped_column(Text)
-    __table_args__ = (UniqueConstraint("sport_id", "abbr"),)
+    provider: Mapped[str | None] = mapped_column(Text)           # e.g. "balldontlie"; NULL for demo data
+    provider_id: Mapped[int | None]
+    conference: Mapped[str | None] = mapped_column(Text)
+    division: Mapped[str | None] = mapped_column(Text)
+    synced_at: Mapped[datetime | None]
+    __table_args__ = (UniqueConstraint("sport_id", "abbr"), UniqueConstraint("sport_id", "provider", "provider_id"))
 
 
 class Athlete(db.Model):
@@ -50,17 +59,28 @@ class Athlete(db.Model):
     pro_team_id: Mapped[int] = mapped_column(ForeignKey("pro_teams.id"))
     name: Mapped[str] = mapped_column(Text)
     positions: Mapped[str] = mapped_column(Text)            # comma separated, e.g. "PG,SG"
-    age: Mapped[int]
-    rank: Mapped[int]                                       # preseason consensus rank (1 = best)
+    age: Mapped[int | None]
+    rank: Mapped[int]                                       # preseason consensus rank (1 = best); real data: derived from imported stats
+    provider: Mapped[str | None] = mapped_column(Text)
+    provider_id: Mapped[int | None]
+    first_name: Mapped[str | None] = mapped_column(Text)
+    last_name: Mapped[str | None] = mapped_column(Text)
+    height: Mapped[str | None] = mapped_column(Text)
+    weight: Mapped[str | None] = mapped_column(Text)
+    provider_position: Mapped[str | None] = mapped_column(Text)   # raw provider value, e.g. "G-F"
+    active: Mapped[bool] = mapped_column(default=True)
+    meta: Mapped[dict | None] = mapped_column(db.JSON)            # extra provider fields (college, draft year ...)
+    synced_at: Mapped[datetime | None]
     injury_start: Mapped[int | None]                        # first sim day missed
     injury_end: Mapped[int | None]                          # first sim day back
     injury_note: Mapped[str | None] = mapped_column(Text)
     is_simulated: Mapped[bool] = mapped_column(default=True)
     pro_team: Mapped["ProTeam"] = relationship()
+    __table_args__ = (UniqueConstraint("sport_id", "provider", "provider_id"),)
 
     @property
     def position_list(self):
-        return self.positions.split(",")
+        return [p for p in (self.positions or "").split(",") if p]
 
     def injury_status(self, day: int) -> str:
         """HEALTHY, DTD (out 3 days or fewer) or OUT on sim day `day`."""
@@ -77,6 +97,18 @@ class ProGame(db.Model):
     day: Mapped[int] = mapped_column(index=True)
     home_team_id: Mapped[int] = mapped_column(ForeignKey("pro_teams.id"))
     away_team_id: Mapped[int] = mapped_column(ForeignKey("pro_teams.id"))
+    provider: Mapped[str | None] = mapped_column(Text)
+    provider_id: Mapped[int | None]
+    season: Mapped[int | None]
+    postseason: Mapped[bool] = mapped_column(default=False)
+    starts_at: Mapped[datetime | None]                             # scheduled tip-off (UTC, naive)
+    game_date: Mapped[date | None]
+    status: Mapped[str] = mapped_column(Text, default="final")     # scheduled | in_progress | final  (demo games: final)
+    home_score: Mapped[int | None]
+    away_score: Mapped[int | None]
+    synced_at: Mapped[datetime | None]
+    stats_synced_at: Mapped[datetime | None]                       # last time box scores were imported for this game
+    __table_args__ = (UniqueConstraint("sport_id", "provider", "provider_id"),)
 
 
 class GameStat(db.Model):
@@ -86,8 +118,30 @@ class GameStat(db.Model):
     athlete_id: Mapped[int] = mapped_column(ForeignKey("athletes.id"))
     pro_game_id: Mapped[int] = mapped_column(ForeignKey("pro_games.id"))
     day: Mapped[int]
-    stats: Mapped[dict] = mapped_column(db.JSON)
-    __table_args__ = (UniqueConstraint("athlete_id", "day"), Index("ix_game_stats_day", "day"))
+    stats: Mapped[dict] = mapped_column(db.JSON)                  # scoring view: only stats the source actually reported
+    # Typed source statistics. NULL = the provider did not report it (never silently 0).
+    minutes: Mapped[float | None]
+    pts: Mapped[int | None]
+    reb: Mapped[int | None]
+    oreb: Mapped[int | None]
+    dreb: Mapped[int | None]
+    ast: Mapped[int | None]
+    stl: Mapped[int | None]
+    blk: Mapped[int | None]
+    tov: Mapped[int | None]
+    fgm: Mapped[int | None]
+    fga: Mapped[int | None]
+    fg3m: Mapped[int | None]
+    fg3a: Mapped[int | None]
+    ftm: Mapped[int | None]
+    fta: Mapped[int | None]
+    pf: Mapped[int | None]
+    plus_minus: Mapped[int | None]
+    source: Mapped[str | None] = mapped_column(Text)              # provider name; NULL = demo
+    provider_stat_id: Mapped[int | None]
+    provider_updated_at: Mapped[datetime | None]
+    synced_at: Mapped[datetime | None]
+    __table_args__ = (UniqueConstraint("athlete_id", "day"), UniqueConstraint("athlete_id", "pro_game_id"), Index("ix_game_stats_day", "day"))
 
 
 class League(db.Model):
@@ -103,9 +157,25 @@ class League(db.Model):
     status: Mapped[str] = mapped_column(Text, default="pre_draft")     # pre_draft | drafting | active
     current_day: Mapped[int] = mapped_column(default=0)
     is_demo: Mapped[bool] = mapped_column(default=False)
+    season: Mapped[int | None]
+    first_week: Mapped[int] = mapped_column(default=1)            # first scoring week (leagues drafted mid-season start later)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     sport: Mapped["Sport"] = relationship()
     scoring: Mapped["ScoringConfig"] = relationship(back_populates="league", uselist=False)
+
+
+class ScoringRuleSet(db.Model):
+    """An immutable set of scoring weights. Leagues with identical rules share one row, and persisted fantasy
+    scores point at it, so changing a league's rules never rewrites history (a new rule set is used instead)."""
+    __tablename__ = "scoring_rulesets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sport_id: Mapped[int] = mapped_column(ForeignKey("sports.id"))
+    rules_hash: Mapped[str] = mapped_column(Text)
+    rules: Mapped[dict] = mapped_column(db.JSON)
+    name: Mapped[str | None] = mapped_column(Text)                    # set for named templates
+    is_template: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    __table_args__ = (UniqueConstraint("sport_id", "rules_hash"),)
 
 
 class ScoringConfig(db.Model):
@@ -113,6 +183,7 @@ class ScoringConfig(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"), unique=True)
     rules: Mapped[dict] = mapped_column(db.JSON)                      # {"pts": 1.0, ...}
+    ruleset_id: Mapped[int | None] = mapped_column(ForeignKey("scoring_rulesets.id"))
     league: Mapped["League"] = relationship(back_populates="scoring")
 
 
@@ -141,6 +212,8 @@ class RosterSlot(db.Model):
     team_id: Mapped[int] = mapped_column(ForeignKey("fantasy_teams.id"), index=True)
     athlete_id: Mapped[int] = mapped_column(ForeignKey("athletes.id"))
     slot: Mapped[str] = mapped_column(Text)                           # PG.. UTIL, BN, IR
+    acquired_via: Mapped[str | None] = mapped_column(Text)            # draft | add | trade
+    acquired_at: Mapped[datetime | None]
     athlete: Mapped["Athlete"] = relationship()
     __table_args__ = (UniqueConstraint("league_id", "athlete_id"),)
 
@@ -190,6 +263,7 @@ class Matchup(db.Model):
     home_score: Mapped[float] = mapped_column(default=0.0)
     away_score: Mapped[float] = mapped_column(default=0.0)
     final: Mapped[bool] = mapped_column(default=False)
+    finalized_at: Mapped[datetime | None]
 
 
 class DailyScore(db.Model):
@@ -265,3 +339,53 @@ class Activity(db.Model):
     message: Mapped[str] = mapped_column(Text)
     day: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class PlayerFantasyScore(db.Model):
+    """Fantasy points one player earned in one game under one scoring rule set (NULL points = a needed stat was missing)."""
+    __tablename__ = "player_fantasy_scores"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_stat_id: Mapped[int] = mapped_column(ForeignKey("game_stats.id"))
+    athlete_id: Mapped[int] = mapped_column(ForeignKey("athletes.id"))
+    pro_game_id: Mapped[int] = mapped_column(ForeignKey("pro_games.id"))
+    day: Mapped[int]
+    ruleset_id: Mapped[int] = mapped_column(ForeignKey("scoring_rulesets.id"))
+    points: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    calculated_at: Mapped[datetime] = mapped_column(default=utcnow)
+    __table_args__ = (UniqueConstraint("game_stat_id", "ruleset_id"), Index("ix_pfs_ruleset_day", "ruleset_id", "day"),
+                      Index("ix_pfs_ruleset_athlete", "ruleset_id", "athlete_id"))
+
+
+class TeamPeriodScore(db.Model):
+    """A fantasy team's total for one scoring period (week) of one matchup."""
+    __tablename__ = "team_period_scores"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id"))
+    matchup_id: Mapped[int] = mapped_column(ForeignKey("matchups.id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("fantasy_teams.id"))
+    week: Mapped[int]
+    points: Mapped[float] = mapped_column(default=0.0)
+    final: Mapped[bool] = mapped_column(default=False)
+    calculated_at: Mapped[datetime] = mapped_column(default=utcnow)
+    __table_args__ = (UniqueConstraint("matchup_id", "team_id"),)
+
+
+class DataSyncRun(db.Model):
+    """One execution of an ingestion job (what ran, when, what changed, and how it ended)."""
+    __tablename__ = "data_sync_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(Text)
+    job_type: Mapped[str] = mapped_column(Text)                       # teams_players | schedule | stats | corrections | scores | daily | backfill
+    status: Mapped[str] = mapped_column(Text, default="running")      # running | success | partial | failed | blocked
+    started_at: Mapped[datetime] = mapped_column(default=utcnow)
+    finished_at: Mapped[datetime | None]
+    inserted: Mapped[int] = mapped_column(default=0)
+    updated: Mapped[int] = mapped_column(default=0)
+    skipped: Mapped[int] = mapped_column(default=0)
+    requests_made: Mapped[int] = mapped_column(default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    marker: Mapped[str | None] = mapped_column(Text)                  # what was covered, e.g. "2026-10-20..2026-10-26"
+    params: Mapped[dict | None] = mapped_column(db.JSON)
+    triggered_by: Mapped[str | None] = mapped_column(Text)            # cli | admin:<email> | schedule
+    # Only ONE run per provider may be 'running' at a time (blocks duplicate scheduler / multi-worker runs)
+    __table_args__ = (Index("uq_sync_one_running", "provider", unique=True, sqlite_where=text("status = 'running'")),)

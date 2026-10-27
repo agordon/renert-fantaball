@@ -14,10 +14,19 @@ from root import db
 from models.fantasy import Athlete, DraftPick, DraftQueueItem, DraftSession, FantasyTeam, League, RosterSlot, utcnow
 from fantaball import stats as stats_svc
 from fantaball.errors import bad_request, conflict, forbidden, not_found
+from fantaball.pool import pool_query
 from fantaball.leagues import fill_with_bots, generate_schedule, log_activity, teams_of
 from fantaball.lineups import rules_of
 from fantaball.roster import optimal_lineup
 from fantaball.sports import SPORTS
+
+
+def draft_day(league: League) -> int:
+    """Stats are used up to this day when valuing players: 0 for the demo world, 'today' for real data."""
+    if league.sport.data_source == "demo":
+        return 0
+    from fantaball import timeline
+    return min(timeline.today_day(league.sport), SPORTS[league.sport.code]["season_days"])
 
 
 def snake_team_slot(overall: int, n_teams: int) -> int:
@@ -78,7 +87,7 @@ def drafted_ids(session: DraftSession) -> set[int]:
 
 def available_athletes(league: League, session: DraftSession) -> list[Athlete]:
     taken = drafted_ids(session)
-    q = db.select(Athlete).where(Athlete.sport_id == league.sport_id).order_by(Athlete.rank)
+    q = pool_query(league.sport_id).order_by(Athlete.rank)
     return [a for a in db.session.scalars(q) if a.id not in taken]
 
 
@@ -112,20 +121,23 @@ def make_pick(league: League, session: DraftSession, team: FantasyTeam, athlete_
 
 def complete_draft(league: League, session: DraftSession):
     """Turn picks into rosters (best legal lineup), create the season schedule, activate the league."""
-    summ = stats_svc.summaries(league.sport_id, rules_of(league), 0)
+    day = draft_day(league)
+    summ = stats_svc.summaries(league.sport_id, rules_of(league), day)
     sc = league.sport.code
     for team in teams_of(league.id):
         picks = list(db.session.scalars(db.select(DraftPick).where(DraftPick.session_id == session.id, DraftPick.team_id == team.id)))
         players = [dict(id=p.athlete_id, positions=p.athlete.position_list, value=summ[p.athlete_id]["proj"],
-                        status=p.athlete.injury_status(1)) for p in picks]
+                        status=p.athlete.injury_status(day + 1)) for p in picks]
         assignment = optimal_lineup(sc, league.roster_config, players)
         for p in picks:
-            db.session.add(RosterSlot(league_id=league.id, team_id=team.id, athlete_id=p.athlete_id, slot=assignment[p.athlete_id]))
+            db.session.add(RosterSlot(league_id=league.id, team_id=team.id, athlete_id=p.athlete_id, slot=assignment[p.athlete_id], acquired_via="draft", acquired_at=utcnow()))
     session.status = "complete"
     session.pick_deadline = None
     league.status = "active"
-    league.current_day = 0
-    generate_schedule(league)
+    league.current_day = day
+    # Real leagues drafted mid-season start scoring TOMORROW (current_day = today's day number) in the current week;
+    # demo leagues start at day 0 / week 1.
+    generate_schedule(league, first_week=stats_svc.week_of_day(day + 1, SPORTS[league.sport.code]["days_per_week"]) if day else 1)
     log_activity(league.id, "draft", "The draft is complete - the season is ready to start")
 
 
@@ -181,7 +193,7 @@ def team_needs(league: League, drafted: list[Athlete]) -> dict[str, int]:
 
 
 def bot_choose(league: League, session: DraftSession, team: FantasyTeam, available: list[Athlete]) -> Athlete:
-    summ = stats_svc.summaries(league.sport_id, rules_of(league), 0)
+    summ = stats_svc.summaries(league.sport_id, rules_of(league), draft_day(league))
     proj = {a.id: summ[a.id]["proj"] for a in available}
     all_ath = available   # replacement levels from the still-available pool keep scarcity realistic
     levels = replacement_levels(league, all_ath, proj)
@@ -193,7 +205,7 @@ def bot_choose(league: League, session: DraftSession, team: FantasyTeam, availab
         score = value_over_replacement(a, proj, levels)
         if any(needs[p] > 0 for p in a.position_list):
             score += 4
-        if a.injury_status(1) != "HEALTHY":
+        if a.injury_status(draft_day(league) + 1) != "HEALTHY":
             score -= 8
         score += rng.gauss(0, 1.5)
         if score > best_score:

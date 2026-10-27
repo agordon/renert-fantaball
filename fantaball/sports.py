@@ -36,7 +36,17 @@ SPORTS = {
     },
 }
 
-PLAYABLE_SPORTS = ["nba"]   # leagues can only be created for these (NHL is a demo dataset for now)
+# "nba" is the REAL-data sport (filled by the data pipeline); "nba_demo" is the same game with SIMULATED fictional data.
+# Both share one rule definition. Season length differs: the real NBA regular season is ~24 weeks.
+SPORTS["nba_demo"] = {**SPORTS["nba"], "name": "NBA Basketball (simulated demo)"}
+SPORTS["nba"] = {**SPORTS["nba"], "season_days": 168}      # 24 weeks of 7 days
+
+PLAYABLE_SPORTS = ["nba", "nba_demo"]   # leagues can only be created for these (NHL is a demo dataset for now)
+
+
+def family(code: str) -> str:
+    """'nba_demo' -> 'nba' (the underlying game, independent of where its data comes from)."""
+    return code.split("_")[0]
 
 
 def get_sport(code: str) -> dict:

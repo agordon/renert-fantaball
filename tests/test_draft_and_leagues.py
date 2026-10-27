@@ -14,12 +14,12 @@ def test_snake_order_12_teams():
 
 
 def test_create_league_validation(alice):
-    assert alice.post("/api/leagues", {"name": "x"})[0] == 400
-    assert alice.post("/api/leagues", {"name": "Valid name", "num_teams": 7})[0] == 400
+    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "x"})[0] == 400
+    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "num_teams": 7})[0] == 400
     assert alice.post("/api/leagues", {"name": "Valid name", "sport": "nhl"})[0] == 400      # not playable yet
-    assert alice.post("/api/leagues", {"name": "Valid name", "scoring_rules": {"bogus": 1}})[0] == 400
-    assert alice.post("/api/leagues", {"name": "Valid name", "roster_config": [["PG", 99]]})[0] == 400
-    s, lg = alice.post("/api/leagues", {"name": "Alice League", "num_teams": 8, "scoring_rules": {"pts": 1, "reb": 2}})
+    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "scoring_rules": {"bogus": 1}})[0] == 400
+    assert alice.post("/api/leagues", {"sport": "nba_demo", "name": "Valid name", "roster_config": [["PG", 99]]})[0] == 400
+    s, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Alice League", "num_teams": 8, "scoring_rules": {"pts": 1, "reb": 2}})
     assert s == 201 and lg["is_commissioner"] and lg["status"] == "pre_draft"
     s, detail = alice.get(f"/api/leagues/{lg['id']}")
     assert detail["scoring_rules"] == {"pts": 1.0, "reb": 2.0}
@@ -27,7 +27,7 @@ def test_create_league_validation(alice):
 
 
 def test_join_league_by_code_and_access_control(alice, bob):
-    _, lg = alice.post("/api/leagues", {"name": "Join Me", "num_teams": 4})
+    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Join Me", "num_teams": 4})
     lid = lg["id"]
     assert bob.get(f"/api/leagues/{lid}")[0] == 403                      # non-member cannot read
     assert bob.post("/api/leagues/join", {"code": "NOSUCH00"})[0] == 404
@@ -43,7 +43,7 @@ def test_join_league_by_code_and_access_control(alice, bob):
 
 
 def test_full_mock_draft_enforces_turn_order_and_uniqueness(alice):
-    _, lg = alice.post("/api/leagues", {"name": "Draft Test", "num_teams": 6})
+    _, lg = alice.post("/api/leagues", {"sport": "nba_demo", "name": "Draft Test", "num_teams": 6})
     lid = lg["id"]
     s, st = alice.post(f"/api/leagues/{lid}/draft/start", {"pick_seconds": 60})
     assert s == 200 and st["session"]["status"] == "live"

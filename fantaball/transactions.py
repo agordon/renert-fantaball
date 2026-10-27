@@ -42,7 +42,7 @@ def add_drop(league: League, team: FantasyTeam, add_id: int | None, drop_id: int
             db.session.add(PlayerTransaction(league_id=league.id, team_id=team.id, kind="drop", athlete_id=drop_id, day=day))
             log_activity(league.id, "drop", f"{team.name} dropped {dropped.name}", day)
         if add_athlete is not None:
-            new = RosterSlot(league_id=league.id, team_id=team.id, athlete_id=add_id, slot="BN")
+            new = RosterSlot(league_id=league.id, team_id=team.id, athlete_id=add_id, slot="BN", acquired_via="add", acquired_at=utcnow())
             db.session.add(new)
             db.session.flush()
             place_new_players(league, team, [add_id], {add_id: keep_slot} if keep_slot else None)
@@ -121,9 +121,11 @@ def accept_trade(league: League, offer: TradeOffer, acting_team: FantasyTeam, re
         for aid in give:
             slots[aid].team_id = acting_team.id
             slots[aid].slot = "BN"
+            slots[aid].acquired_via, slots[aid].acquired_at = "trade", utcnow()
         for aid in get:
             slots[aid].team_id = from_team.id
             slots[aid].slot = "BN"
+            slots[aid].acquired_via, slots[aid].acquired_at = "trade", utcnow()
         db.session.flush()
         # Pending offers that involve a moved player are void now
         for other in db.session.scalars(db.select(TradeOffer).where(TradeOffer.league_id == league.id, TradeOffer.status == "pending", TradeOffer.id != offer.id)):

@@ -6,6 +6,7 @@ Checks: (1) positional strength vs the league, (2) bench depth, (3) this week's 
 from root import db
 from models.fantasy import Athlete, League, FantasyTeam
 from fantaball import stats as stats_svc
+from fantaball.pool import pool_query
 from fantaball.lineups import owner_map, rules_of, team_slots
 from fantaball.roster import optimal_lineup
 from fantaball.sports import SPORTS
@@ -70,7 +71,7 @@ def analyze(league: League, team: FantasyTeam) -> dict:
 
     # 5) Best free agent vs worst player you could drop
     owned = owner_map(league.id)
-    free = [a for a in db.session.scalars(db.select(Athlete).where(Athlete.sport_id == league.sport_id)) if a.id not in owned and a.injury_status(day + 1) == "HEALTHY"]
+    free = [a for a in db.session.scalars(pool_query(league.sport_id)) if a.id not in owned and a.injury_status(day + 1) == "HEALTHY"]
     droppable = [a for a in mine if cur_slot[a.id] in ("BN", "IR")] or mine
     if free and droppable:
         fa = max(free, key=lambda a: summ[a.id]["proj"] * max(_games_left_this_week(league, a), 1))

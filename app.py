@@ -4,6 +4,7 @@ import sys
 from dotenv import load_dotenv
 
 from flask_jwt_auth_manager import JWTAuthManager
+from flask_migrate import Migrate
 from root import app, db
 
 # Import all models, so that db.create_all() knows about their tables
@@ -41,26 +42,60 @@ if app.config["ENVIRONMENT"] not in ENVIRONMENTS:
 os.makedirs(app.instance_path, exist_ok=True)
 
 db.init_app(app)
+
+
+def _migration_filter(obj, name, type_, reflected, compare_to):
+    """Alembic must never touch the read-only 'people' table (see models/people.py)."""
+    if type_ == "table" and name == "people":
+        return False
+    return not (type_ in ("index", "unique_constraint") and getattr(getattr(obj, "table", None), "name", None) == "people")
+
+
+migrate = Migrate(app, db, render_as_batch=True, include_object=_migration_filter)    # migrations live in ./migrations
 JWTAuthManager(app)
 
 # Importing the view modules registers their routes (@app.route) with the app
 import views.index  # noqa: E402, F401
 import views.api  # noqa: E402, F401  (FantaBall REST API, /api/...)
 
-# Create any missing tables (existing tables are not modified), then (development only) add any missing initial rows
-with app.app_context():
+BASELINE_REVISION = "0001"
+
+
+def init_database():
+    """Bring the schema up to date with Alembic migrations (safe to run on every start).
+
+    * Brand-new database: runs every migration.
+    * Database created by the old db.create_all() (before migrations existed): stamped as the baseline, then upgraded.
+    * db.create_all() afterwards only creates tables that are still missing (the read-only 'people' table).
+    """
+    from flask_migrate import stamp, upgrade
+    from sqlalchemy import inspect
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "alembic_version" not in tables and "leagues" in tables:
+        stamp(revision=BASELINE_REVISION)
+    upgrade()
     db.create_all()
-    if app.config["ENVIRONMENT"] == "development":
-        init_data()
-    # FantaBall: the simulated sports world is needed in every environment (idempotent);
-    # the pre-played demo league is development-only, like init_data().
-    for _sport in ("nba", "nhl"):
-        load_world(DemoProvider(_sport))
-    if app.config["ENVIRONMENT"] == "development":
-        seed_demo_league(
-            app.config.get("JWT_AUTH_DUMMY_USER_EMAIL", "john.doe@example.com"),
-            f"{app.config.get('JWT_AUTH_DUMMY_USER_FIRST_NAME', 'John')} {app.config.get('JWT_AUTH_DUMMY_USER_LAST_NAME', 'Doe')}",
-        )
+
+
+from fantaball.cli import register as register_cli  # noqa: E402
+register_cli(app)   # flask --app app nba <command>
+
+# Create / migrate the schema, then (development only) add any missing initial rows.
+# FLASK_SKIP_DB_INIT=true is for generating migrations (flask db migrate) against an empty database.
+with app.app_context():
+    if not app.config.get("SKIP_DB_INIT"):
+        init_database()
+        if app.config["ENVIRONMENT"] == "development":
+            init_data()
+        # Simulated demo world + pre-played demo league: only when explicitly enabled (FLASK_DEMO_DATA=true).
+        if app.config.get("DEMO_DATA"):
+            for _sport in ("nba_demo", "nhl"):
+                load_world(DemoProvider(_sport))
+            seed_demo_league(
+                app.config.get("JWT_AUTH_DUMMY_USER_EMAIL", "john.doe@example.com"),
+                f"{app.config.get('JWT_AUTH_DUMMY_USER_FIRST_NAME', 'John')} {app.config.get('JWT_AUTH_DUMMY_USER_LAST_NAME', 'Doe')}",
+            )
 
 
 if __name__ == "__main__":

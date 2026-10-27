@@ -11,6 +11,7 @@ from fantaball import leagues as league_svc
 from fantaball import stats as stats_svc
 from fantaball import transactions as tx
 from fantaball.lineups import team_slots
+from fantaball.rulesets import ensure_default_template
 from fantaball.providers import DataProvider, DemoProvider
 from fantaball.simulation import advance_day
 from fantaball.sports import SPORTS
@@ -24,9 +25,10 @@ def load_world(provider: DataProvider):
     code = provider.sport_code
     if db.session.scalar(db.select(Sport).where(Sport.code == code)):
         return
-    sport = Sport(code=code, name=SPORTS[code]["name"])
+    sport = Sport(code=code, name=SPORTS[code]["name"], data_source="demo")
     db.session.add(sport)
     db.session.flush()
+    ensure_default_template(sport)
     teams = {}
     for t in provider.pro_teams():
         pt = ProTeam(sport_id=sport.id, **t)
@@ -70,7 +72,7 @@ def seed_demo_league(demo_email: str, demo_name: str):
     if db.session.scalar(db.select(League.id).where(League.is_demo.is_(True))):
         return
     me = get_or_create_manager(demo_email, demo_name)
-    league = league_svc.create_league(me, DEMO_LEAGUE_NAME, "nba", 12, team_name="Demo Dynasty", is_demo=True)
+    league = league_svc.create_league(me, DEMO_LEAGUE_NAME, "nba_demo", 12, team_name="Demo Dynasty", is_demo=True)
     session = draft_svc.start_draft(league, pick_seconds=45)
     draft_svc.sim_until_human(league, session, to_end=True)      # computer managers draft for everybody
 
@@ -117,6 +119,6 @@ def _pending_offers(league, mine, bots):
 
 
 def seed_all(demo_email: str, demo_name: str):
-    load_world(DemoProvider("nba"))
+    load_world(DemoProvider("nba_demo"))
     load_world(DemoProvider("nhl"))
     seed_demo_league(demo_email, demo_name)
