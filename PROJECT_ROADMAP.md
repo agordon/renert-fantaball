@@ -8,7 +8,7 @@ rules, add/drop, trades + impact simulator, matchups, standings/power rankings, 
 - Alembic migrations (baseline 0001 + 0002); legacy databases are stamped and upgraded; `people` table untouched.
 - Schema for provider teams/players/games/box scores (typed, nullable stats, unique player+game), scoring rule sets,
   persisted fantasy scores, team period scores, sync runs, roster acquisition history.
-- `NBADataProvider` interface; `BallDontLieProvider` (cursor pagination, timeouts, rate limit, backoff, 401/403/429/5xx handling);
+- `NBADataProvider` interface; `HighlightlyProvider` (default; free plan with player box scores, quota-aware) and `BallDontLieProvider` (alternative); shared client with timeouts, pacing, backoff, 401/403/429/5xx handling;
   an offline fixture provider used by the automated tests only.
 - Idempotent ingestion jobs: teams+players, schedule, box scores (missing only), corrections, score recalculation, daily job, CLI
   commands, scheduler files (systemd timer, cron script, Windows task), one-running-job lock.
@@ -24,12 +24,12 @@ lenient scoring. Kept (legitimate configuration, not data): sport definitions in
 the draft-room position filter, computer-manager team names. Scoring labels/defaults and stat labels now come from the API.
 
 ## Needs your action / not verified
-- **Real data has not been imported yet.** It needs your BALLDONTLIE key (`BALLDONTLIE_API_KEY` in `.env`). The free plan gives teams,
-  players and schedules; **player box scores need ALL-STAR ($9.99/mo)** - approval needed before subscribing. Until a real request
-  succeeds with a key, treat the live provider integration as implemented and unit-tested, not production-verified.
-- Real-provider assumptions to confirm with a key: `players?team_ids[]=` returns current rosters; `games` includes `postseason` and
-  `status` values as documented; `stats?dates[]=` returns full-game lines (period 0).
-- Injury data (paid endpoint) is not imported: every real player shows as healthy.
+- **Add your Highlightly key** (`HIGHLIGHTLY_API_KEY` in `.env`), then `npm run sync`. No real box score has been fetched yet: the integration
+  follows the provider's OpenAPI spec and is tested offline, so expect small adjustments after the first real import.
+- Assumptions to confirm with a key: stat names match the documented box-score names; `positionAbbreviation` values map via
+  `ingest.POSITION_MAP`; `/matches?season=` numbering (handled by a one-time probe); whether preseason games are listed (set
+  `FLASK_NBA_SEASON_START` if so); final scores are not imported (the spec's score arrays are ambiguous) - fantasy points do not need them.
+- Playoff games are not distinguished (the API has no flag); injuries are not imported (every player shows healthy).
 
 ## Not done
 Waiver claim processing (schema only), playoffs, other formats (categories/roto/keeper), NFL, NHL, league chat, League Legacy,

@@ -20,6 +20,7 @@ SEASON_START = date(2026, 10, 19)                                 # a Monday
 
 class MockNBAProvider(NBADataProvider):
     name = "mock"
+    stats_plan_hint = "MOCK plan: box scores need the ALL-STAR plan."
     is_mock = True
 
     def __init__(self, today: date = date(2026, 10, 27), days: int = 14, seed: int = 7):

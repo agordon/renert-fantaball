@@ -20,10 +20,15 @@ log = logging.getLogger("fantaball.nba.http")
 
 
 class HttpClient:
-    def __init__(self, base_url: str, api_key: str | None, *, timeout: float = 20.0, max_retries: int = 4, backoff_base: float = 2.0,
-                 backoff_max: float = 60.0, requests_per_minute: float = 5.0, opener=None, sleep=time.sleep, clock=time.monotonic):
+    def __init__(self, base_url: str, api_key: str | None, *, auth_header: str = "Authorization", timeout: float = 20.0, max_retries: int = 4,
+                 backoff_base: float = 2.0, backoff_max: float = 60.0, requests_per_minute: float = 5.0, max_requests: int | None = None,
+                 quota_header: str | None = None, opener=None, sleep=time.sleep, clock=time.monotonic):
         self.base_url = base_url.rstrip("/")
         self._api_key = api_key
+        self.auth_header = auth_header
+        self.max_requests = max_requests            # hard cap for this client (e.g. what is left of today's quota)
+        self.quota_header = quota_header            # response header carrying the requests still available today
+        self.quota_remaining: int | None = None
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff_base = backoff_base
@@ -47,21 +52,34 @@ class HttpClient:
             return min(max(retry_after, 0), self.backoff_max)
         return min(self.backoff_base * (2 ** attempt), self.backoff_max)
 
+    def _note_quota(self, headers):
+        if not self.quota_header or headers is None:
+            return
+        try:
+            self.quota_remaining = int(headers.get(self.quota_header))
+        except (TypeError, ValueError):
+            pass
+
     def get_json(self, path: str, params: list[tuple[str, str]] | None = None) -> dict:
         url = f"{self.base_url}/{path.lstrip('/')}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
         headers = {"Accept": "application/json", "User-Agent": "FantaBall/1.0 (school project)"}
         if self._api_key:
-            headers["Authorization"] = self._api_key
+            headers[self.auth_header] = self._api_key
         last_error: Exception | None = None
         for attempt in range(self.max_retries + 1):
+            if self.quota_remaining is not None and self.quota_remaining <= 0:
+                raise ProviderRateLimited("The provider's daily request quota is used up (it resets daily). Nothing more was requested.")
+            if self.max_requests is not None and self.requests_made >= self.max_requests:
+                raise ProviderRateLimited("Today's request budget for this plan is used up. Nothing more was requested; try again tomorrow.")
             self._throttle()
             self.requests_made += 1
             retry_after = None
             try:
                 with self._opener(urllib.request.Request(url, headers=headers), timeout=self.timeout) as resp:
                     raw = resp.read()
+                    self._note_quota(getattr(resp, "headers", None))
                 try:
                     return json.loads(raw)
                 except ValueError as exc:
@@ -71,7 +89,7 @@ class HttpClient:
                 if code == 401:
                     raise ProviderAuthError("HTTP 401 from the data provider: the API key is missing/invalid, or your plan does not include this endpoint") from None
                 if code == 403:
-                    raise ProviderAccessError("HTTP 403 from the data provider: access forbidden for this key/plan") from None
+                    raise ProviderAccessError("HTTP 403 from the data provider: access forbidden (missing or unauthorised request headers, or not allowed for this plan)") from None
                 if code == 429:
                     last_error = ProviderRateLimited("HTTP 429 from the data provider: rate limit exceeded (retries exhausted)")
                     try:

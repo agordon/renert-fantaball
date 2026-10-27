@@ -152,12 +152,14 @@ function DashboardInner() {
 }
 
 
+const PROVIDER_NAMES: Record<string, string> = { highlightly: "Highlightly", balldontlie: "BALLDONTLIE" };
+
 /** Where the numbers come from and how old they are (timestamp of the underlying statistics). */
 function DataStrip({ data }: { data: DataBlock }) {
   if (!data) return null;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink2">
-      <span className="font-medium">Real NBA data · BALLDONTLIE</span>
+      <span className="font-medium">Real NBA data · {PROVIDER_NAMES[data.source] ?? data.source}</span>
       {data.season != null && <span>Season {data.season}-{String(data.season + 1).slice(2)}</span>}
       <span>Last data sync: <b className="num text-ink">{data.last_sync ? when(data.last_sync) : "never"}</b></span>
       <span>Statistics as of: <b className="num text-ink">{data.stats_as_of ? when(data.stats_as_of) : "none imported yet"}</b></span>

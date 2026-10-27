@@ -1,7 +1,7 @@
 # FantaBall - project notes
 
 Flask + Flask-SQLAlchemy backend (existing school project) + Next.js/React/TypeScript/Tailwind frontend in `frontend/`.
-Real NBA data (BALLDONTLIE) -> `fantaball/nba/*` ingestion -> database -> `fantaball/scoring.py` -> API -> website.
+Real NBA data (Highlightly; BALLDONTLIE alternative) -> `fantaball/nba/*` ingestion -> database -> `fantaball/scoring.py` -> API -> website.
 
 ## Commands
 - `npm run setup` once; `npm run dev` (API :5010 + app :3000, open http://localhost:3000); `npm run prod`; `npm run test`
@@ -21,7 +21,9 @@ Real NBA data (BALLDONTLIE) -> `fantaball/nba/*` ingestion -> database -> `fanta
 - Missing provider stats are NULL, never 0. Scoring uses `score_decimal` (None if a needed stat is missing). Scoring rule sets are
   immutable (new weights = new `scoring_rulesets` row).
 - Provider calls go through `fantaball/nba/http.py` (timeout, rate limit, backoff; 401/403 never retried). The API key lives only in
-  the environment (`BALLDONTLIE_API_KEY`), never in code, responses or logs. Do not buy plans / make paid calls without approval.
+  the environment (`HIGHLIGHTLY_API_KEY`), never in code, responses or logs. Do not buy plans / make paid calls without approval.
+- Highlightly specifics: players come from box scores (no roster endpoint), positions from lineups, one request per game, free quota
+  100/day (the client stops at the budget / `x-ratelimit-requests-remaining`). Provider capabilities live as attributes on `NBADataProvider`.
 - Ingestion must stay idempotent (upsert by provider id) and tracked in `data_sync_runs` (one running job per provider).
 - Tests: use the `world` / `nba_data` fixtures (they wipe and refill the `nba` rows) and `FLASK_FAKE_TODAY`; helpers in
   `tests/helpers.py`; test clients push a fresh app context per request (see `tests/conftest.py`).

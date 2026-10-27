@@ -20,7 +20,7 @@ export interface SyncRun {
 }
 
 export interface DataStatus {
-  provider: { provider: string; configured: boolean; requests_per_minute: number; message: string | null };
+  provider: { provider: string; configured: boolean; key_variable: string; requests_per_minute: number; daily_quota: number | null; requests_used_today: number | null; message: string | null };
   data_source: string;
   season: number;
   season_start: string | null;

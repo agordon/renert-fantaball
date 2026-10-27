@@ -16,7 +16,7 @@ from fantaball.nba import config as nba_config
 from fantaball.nba import ingest
 from fantaball.nba.provider import ProviderError
 
-nba = AppGroup("nba", help="Real NBA data pipeline (BALLDONTLIE) and fantasy scoring.")
+nba = AppGroup("nba", help="Real NBA data pipeline (Highlightly by default) and fantasy scoring.")
 
 
 def _provider():
@@ -96,7 +96,7 @@ def sync_stats_cmd(one_date, start, end):
 
 
 @nba.command("corrections")
-@click.option("--days", default=3, show_default=True, help="Re-check games finished in the last N days")
+@click.option("--days", type=int, default=None, help="Re-check games finished in the last N days (default: the provider's setting)")
 def corrections_cmd(days):
     """Re-fetch recent box scores to pick up official statistic corrections."""
     sys.exit(0 if _run(lambda: ingest.job_corrections(_provider(), days=days)) else 1)

@@ -1,6 +1,6 @@
 """Provider-neutral records and the NBADataProvider interface.
 
-The ingestion, scoring and web layers only ever see these plain dataclasses, so the data source (BALLDONTLIE today)
+The ingestion, scoring and web layers only ever see these plain dataclasses, so the data source (Highlightly today)
 can be swapped without touching the fantasy scoring engine.
 """
 from abc import ABC, abstractmethod
@@ -109,6 +109,15 @@ STAT_FIELDS = ("minutes", "pts", "reb", "oreb", "dreb", "ast", "stl", "blk", "to
 class NBADataProvider(ABC):
     name: str                               # stored in Sport.data_source and on every imported row
 
+    # --- capabilities (what the ingestion layer must know about this provider) -------------------------------------
+    supports_rosters = True                 # False: players() cannot list rosters; players are discovered from box scores
+    stats_by = "date"                       # "date": stats(dates=...) ; "game": stats(game_ids=...) (one request per game)
+    stats_chunk = 8                         # games per commit batch when stats_by == "game"
+    daily_window = (3, 14)                  # (days back, days ahead) the daily job re-syncs; small when requests are scarce
+    corrections_days = 3                    # how many days back the daily job re-fetches for official stat corrections
+    daily_quota: int | None = None          # requests per day the plan allows (None = not tracked)
+    stats_plan_hint = ""                    # shown when the plan does not allow box scores
+
     @abstractmethod
     def teams(self) -> list[TeamRecord]: ...
 
@@ -120,8 +129,10 @@ class NBADataProvider(ABC):
     def games(self, *, season: int | None = None, start_date: date | None = None, end_date: date | None = None) -> Iterator[GameRecord]: ...
 
     @abstractmethod
-    def stats(self, *, dates: list[date] | None = None, game_ids: list[int] | None = None) -> Iterator[StatRecord]:
-        """Player box scores for the given dates or games."""
+    def stats(self, *, dates: list[date] | None = None, game_ids: list[int] | None = None,
+              known_player_ids: set[int] | None = None) -> Iterator[StatRecord]:
+        """Player box scores for the given dates or games. `known_player_ids` = players whose position we already stored
+        (providers that need an extra request to learn positions can skip it for them)."""
 
     @property
     def requests_made(self) -> int:

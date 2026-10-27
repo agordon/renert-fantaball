@@ -11,9 +11,9 @@ import { Badge, Button, Card, ErrorBox, Input, PageHeader, Spinner, Stat } from 
 const TONE = { success: "good", partial: "amber", blocked: "bad", failed: "bad", running: "blue" } as const;
 
 const JOBS: { job: SyncJob; label: string; hint: string; needsKey?: boolean }[] = [
-  { job: "teams_players", label: "Sync teams & players", hint: "Teams and current rosters (free plan OK)." },
-  { job: "schedule", label: "Sync full-season schedule", hint: "Every game of the current season; also anchors the season calendar (free plan OK)." },
-  { job: "stats", label: "Import missing box scores", hint: "Only final games whose player stats are missing. Needs the ALL-STAR plan." },
+  { job: "teams_players", label: "Sync teams", hint: "The 30 NBA teams. Players appear automatically when their box scores are imported." },
+  { job: "schedule", label: "Sync full-season schedule", hint: "Every game of the season (a dozen or so requests); also anchors the season calendar." },
+  { job: "stats", label: "Import missing box scores", hint: "Only final games whose player stats are missing (about one request per game)." },
   { job: "corrections", label: "Re-check recent corrections", hint: "Re-fetches the last 3 days of box scores and applies official corrections." },
   { job: "scores", label: "Recalculate fantasy scores", hint: "Rebuilds stored fantasy points and league totals from the imported stats (no API calls)." },
   { job: "daily", label: "Run the daily sync", hint: "Everything above in the right order - what the scheduler runs." },
@@ -64,11 +64,14 @@ export default function AdminPage() {
             <li className="flex justify-between"><span className="text-ink3">Provider</span><span className="num">{status.provider.provider}</span></li>
             <li className="flex justify-between"><span className="text-ink3">API key</span>
               {status.provider.configured ? <Badge tone="good"><CheckCircle2 className="mr-1 h-3 w-3" />configured</Badge> : <Badge tone="bad"><XCircle className="mr-1 h-3 w-3" />missing</Badge>}</li>
-            <li className="flex justify-between"><span className="text-ink3">Rate limit</span><span className="num">{status.provider.requests_per_minute}/min</span></li>
+            <li className="flex justify-between"><span className="text-ink3">Pace</span><span className="num">{status.provider.requests_per_minute}/min</span></li>
+            {status.provider.daily_quota != null && (
+              <li className="flex justify-between"><span className="text-ink3">Requests today</span>
+                <span className={`num ${(status.provider.requests_used_today ?? 0) >= status.provider.daily_quota ? "text-bad" : ""}`}>{status.provider.requests_used_today ?? 0} / {status.provider.daily_quota}</span></li>)}
             <li className="flex justify-between"><span className="text-ink3">Season</span><span className="num">{status.season}-{String(status.season + 1).slice(2)}</span></li>
             <li className="flex justify-between"><span className="text-ink3">Data in database</span><span className="num">{status.has_real_data ? status.data_source : "none"}</span></li>
           </ul>
-          {status.provider.message && <p className="mt-3 text-xs text-amber">{status.provider.message} Add it to <code>.env</code> as <code>BALLDONTLIE_API_KEY=…</code> and restart the backend. The key is never shown here or sent to the browser.</p>}
+          {status.provider.message && <p className="mt-3 text-xs text-amber">{status.provider.message} Add it to <code>.env</code> as <code>{status.provider.key_variable}=…</code> and restart the backend. The key is never shown here or sent to the browser.</p>}
         </Card>
 
         <Card title="Data freshness">
@@ -117,7 +120,7 @@ export default function AdminPage() {
           <Button type="submit" disabled={action.busy || status.running || !status.provider.configured}>Sync schedule for range</Button>
           <Button type="button" disabled={action.busy || status.running || !status.provider.configured || !range.start} onClick={() => start({ job: "stats", start: range.start, end: range.end || range.start })}>Re-import box scores for range</Button>
         </form>
-        <p className="mt-2 text-xs text-ink3">Jobs run in the background. On the free plan the provider allows 5 requests per minute, so large imports take a while; the page updates by itself. Only one job can run at a time.</p>
+        <p className="mt-2 text-xs text-ink3">Jobs run in the background. The free plan allows a limited number of requests per day, so the first import of a season spans a day or two; the page updates by itself. Only one job can run at a time.</p>
       </Card>
 
       <Card className="mt-4" title="Recent sync runs" pad={false}>

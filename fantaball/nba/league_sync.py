@@ -24,7 +24,7 @@ def completed_through_day(sport: Sport) -> int:
     by_day: dict[int, bool] = {}
     for r in rows:
         postponed = r.status == "scheduled" and (timeline.today() - r.game_date).days >= POSTPONED_AFTER_DAYS
-        ok = postponed or (r.status == "final" and r.stats_synced_at is not None)
+        ok = postponed or r.status in ("postponed", "cancelled") or (r.status == "final" and r.stats_synced_at is not None)
         by_day[r.day] = by_day.get(r.day, True) and ok
     done = 0
     for day in range(1, min(today_day, last_scheduled) + 1):

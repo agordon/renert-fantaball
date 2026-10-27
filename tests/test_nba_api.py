@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_status_shows_onboarding_when_no_real_data_exists(world, alice):
     s, st = alice.get("/api/data/status")
-    assert s == 200 and st["has_real_data"] is False and "BALLDONTLIE_API_KEY" in st["onboarding"]
+    assert s == 200 and st["has_real_data"] is False and "API key" in st["onboarding"]
     assert st["counts"]["players"] == 0 and st["last_success"] is None
 
 

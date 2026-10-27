@@ -123,7 +123,7 @@ export function NeedLeague({ children }: { children: React.ReactNode }) {
   if (!league) return (
     <div className="rounded-lg border border-dashed border-line p-10 text-center">
       <p className="text-ink2">You are not in a league yet.</p>
-      {noData && <p className="mx-auto mt-2 max-w-xl text-sm text-amber">No player data has been imported yet, so a league cannot be created. Set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code> (administrators can also use the Data Admin page).</p>}
+      {noData && <p className="mx-auto mt-2 max-w-xl text-sm text-amber">No player data has been imported yet, so a league cannot be created. Set your data-provider API key in <code>.env</code> and run <code>npm run sync</code> (administrators can also use the Data Admin page).</p>}
       <Link href="/leagues" className="mt-3 inline-block rounded-md bg-teal px-4 py-2 text-sm font-semibold text-[#04201c]">Create or join a league</Link>
     </div>
   );

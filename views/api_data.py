@@ -74,11 +74,13 @@ def data_status(me):
         steps = (r.params or {}).get("steps") or []
         stats_step = next((s for s in steps if s["name"] == "stats"), None)
         if r.job_type == "stats" and r.status == "blocked" or (stats_step and stats_step["status"] == "blocked"):
-            limitations.append("Game player statistics are not available with the current provider plan (BALLDONTLIE returns HTTP 401 for /stats on the free plan). "
-                               "Fantasy points from real box scores need the ALL-STAR plan ($9.99/month). Teams, players and schedules still sync.")
+            limitations.append("Game player statistics are not available with the current provider plan. " + nba_config.stats_hint(current_app.config))
             break
         if r.job_type in ("stats", "daily") and r.status in ("success", "partial"):
             break
+    quota = cfg.get("daily_quota")
+    if quota and (cfg.get("requests_used_today") or 0) >= quota:
+        limitations.append(f"Today's request quota for this plan ({quota} requests) is used up. Imports resume automatically after it resets (daily).")
     freshness_seconds = int((utcnow() - last_success.finished_at).total_seconds()) if last_success and last_success.finished_at else None
     running = any(r.status == "running" for r in runs)
     return dict(provider=cfg, data_source=provider, season=sport.season if sport else nba_config.current_season(current_app.config),
@@ -87,7 +89,7 @@ def data_status(me):
                 last_by_job=last_by_job, failures=failures, freshness_seconds=freshness_seconds, running=running, limitations=limitations,
                 has_real_data=bool(sport and counts["players"]), is_admin=is_admin(me),
                 onboarding=None if (sport and counts["players"]) else
-                "No real NBA data has been imported yet. Set BALLDONTLIE_API_KEY in .env, then run `npm run sync` (or use the sync controls on the Data Admin page).")
+                f"No real NBA data has been imported yet. Set {cfg['key_variable']} in .env, then run `npm run sync` (or use the sync controls on the Data Admin page).")
 
 
 @api("/data/runs")

@@ -127,6 +127,9 @@ def sync_teams_and_players(provider: NBADataProvider, sport: Sport, counts: Coun
     db.session.commit()
     team_by_pid = {t.provider_id: t for t in db.session.scalars(db.select(ProTeam).where(ProTeam.sport_id == sport.id, ProTeam.provider == provider.name))}
 
+    if not provider.supports_rosters:       # players are created from box scores (see sync_stats)
+        recompute_ranks(sport)
+        return f"{len(team_by_pid)} teams (this provider cannot list players: they are added from box scores)"
     athletes = {a.provider_id: a for a in db.session.scalars(db.select(Athlete).where(Athlete.sport_id == sport.id, Athlete.provider == provider.name))}
     seen: set[int] = set()
     for team_pid, team in team_by_pid.items():
@@ -153,6 +156,10 @@ def _upsert_player(sport, provider_name, rec, team, athletes, counts, now):
     values = dict(name=name, first_name=rec.first_name, last_name=rec.last_name, positions=map_position(rec.position), provider_position=rec.position,
                   height=rec.height, weight=rec.weight, pro_team_id=team.id, meta=rec.meta or None, active=True)
     a = athletes.get(rec.provider_id)
+    if a is not None:                       # never erase information a later response happens not to repeat
+        for keep in ("positions", "provider_position", "height", "weight", "meta"):
+            if not values[keep]:
+                values.pop(keep)
     if a is None:
         a = Athlete(sport_id=sport.id, provider=provider_name, provider_id=rec.provider_id, rank=1_000_000, age=None, synced_at=now, **values)
         db.session.add(a)
@@ -197,6 +204,9 @@ def sync_games(provider: NBADataProvider, sport: Sport, counts: Counts, *, seaso
     if not team_by_pid:
         raise IngestError("No NBA teams imported yet - run the teams/players sync first.")
     records = list(provider.games(season=season, start_date=start, end_date=end))
+    configured_start = nba_config._get(current_app.config, "NBA_SEASON_START")      # an explicit setting always wins (e.g. a provider that also lists preseason)
+    if configured_start:
+        sport.season_start = timeline.monday_on_or_before(date.fromisoformat(str(configured_start)))
     if sport.season_start is None:
         if season is None or start is not None or end is not None:
             raise IngestError("The season start date is not known yet. Run a FULL-season schedule sync first (flask nba sync-games --season).")
@@ -230,7 +240,8 @@ def sync_games(provider: NBADataProvider, sport: Sport, counts: Counts, *, seaso
     db.session.commit()
     lo = min((r.game_date for r in records), default=None)
     hi = max((r.game_date for r in records), default=None)
-    return f"{lo}..{hi} ({len(records)} games)" if records else "no games returned"
+    note = "" if configured_start or sport.season_start is None else f"; season day 1 = {sport.season_start} (earliest game {lo})"
+    return f"{lo}..{hi} ({len(records)} games){note}" if records else "no games returned"
 
 
 def _stat_values(rec: StatRecord) -> tuple[dict, dict]:
@@ -259,10 +270,18 @@ def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates
     game_by_pid = {g.provider_id: g for g in games}
     today = timeline.today()
 
-    for i in range(0, len(date_list), STATS_DATE_CHUNK):
-        chunk_dates = date_list[i:i + STATS_DATE_CHUNK]
-        chunk_games = [g for d in chunk_dates for g in by_date[d]]
-        rows = list(provider.stats(dates=chunk_dates))           # may raise (blocked plan / outage): earlier chunks stay committed
+    if provider.stats_by == "game":         # one request per game: commit in small batches so a failure loses little work
+        chunks = [([], games[i:i + provider.stats_chunk]) for i in range(0, len(games), provider.stats_chunk)]
+    else:
+        chunks = [(date_list[i:i + STATS_DATE_CHUNK], [g for d in date_list[i:i + STATS_DATE_CHUNK] for g in by_date[d]])
+                  for i in range(0, len(date_list), STATS_DATE_CHUNK)]
+    known_positions = {pid for pid, a in athletes.items() if a.positions}
+
+    for chunk_dates, chunk_games in chunks:
+        if provider.stats_by == "game":
+            rows = list(provider.stats(game_ids=[g.provider_id for g in chunk_games], known_player_ids=known_positions))
+        else:
+            rows = list(provider.stats(dates=chunk_dates))           # may raise (blocked plan / outage): earlier chunks stay committed
         try:
             existing = {(s.athlete_id, s.pro_game_id): s for s in db.session.scalars(
                 db.select(GameStat).where(GameStat.pro_game_id.in_([g.id for g in chunk_games])))}
@@ -277,9 +296,12 @@ def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates
                     counts.skipped += 1
                     continue
                 athlete = athletes.get(ppid)
-                if athlete is None and rec.player and rec.player.team_provider_id in team_by_pid:
-                    athlete = _upsert_player(sport, provider.name, rec.player, team_by_pid[rec.player.team_provider_id], athletes, counts, now)
-                    db.session.flush()
+                if rec.player and rec.player.team_provider_id in team_by_pid:
+                    team = team_by_pid[rec.player.team_provider_id]
+                    # create the player, or refresh him when a team change or a newly learned position needs recording
+                    if athlete is None or athlete.pro_team_id != team.id or (rec.player.position and map_position(rec.player.position) != athlete.positions):
+                        athlete = _upsert_player(sport, provider.name, rec.player, team, athletes, counts, now)
+                        db.session.flush()
                 if athlete is None:
                     counts.skipped += 1
                     counts.notes.append(f"unknown player {ppid}")
@@ -304,6 +326,7 @@ def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates
                         counts.changed_days.add(game.day)
                     else:
                         counts.skipped += 1
+            known_positions.update(pid for pid, a in athletes.items() if a.positions)
             for g in chunk_games:
                 if g.id in games_with_rows or (today - g.game_date).days >= GIVE_UP_NO_BOX_SCORE_DAYS:
                     g.stats_synced_at = now
@@ -316,8 +339,9 @@ def sync_stats(provider: NBADataProvider, sport: Sport, counts: Counts, *, dates
     return f"{date_list[0]}..{date_list[-1]} ({len(games)} games)"
 
 
-def sync_corrections(provider: NBADataProvider, sport: Sport, counts: Counts, *, days: int = 3) -> str:
+def sync_corrections(provider: NBADataProvider, sport: Sport, counts: Counts, *, days: int | None = None) -> str:
     """Re-fetch box scores of games that finished in the last `days` days; changed rows are updated (official corrections)."""
+    days = provider.corrections_days if days is None else days
     since = timeline.today() - timedelta(days=days)
     dates = sorted({g.game_date for g in db.session.scalars(db.select(ProGame).where(
         ProGame.sport_id == sport.id, ProGame.provider == provider.name, ProGame.status == "final", ProGame.game_date >= since, ProGame.stats_synced_at.is_not(None)))})
@@ -414,7 +438,7 @@ def _after_stats(sport: Sport, counts: Counts):
     league_sync.advance_leagues(sport)
 
 
-def job_corrections(provider, *, days=3, triggered_by="cli"):
+def job_corrections(provider, *, days=None, triggered_by="cli"):
     sport = ensure_sport(provider)
 
     def fn(counts):
@@ -471,10 +495,11 @@ def job_daily(provider, triggered_by="schedule"):
         if last_ref is None or utcnow() - last_ref > timedelta(days=7) or not db.session.scalar(db.select(ProTeam.id).where(ProTeam.sport_id == sport.id)):
             step("teams_players", lambda: sync_teams_and_players(provider, sport, counts))
         today = timeline.today()
-        if sport.season_start is None:
+        back, ahead = provider.daily_window
+        if sport.season_start is None or today.weekday() == 0:      # the whole season once to anchor it, then every Monday
             step("schedule", lambda: sync_games(provider, sport, counts, season=sport.season or nba_config.current_season(current_app.config)))
         else:
-            step("schedule", lambda: sync_games(provider, sport, counts, start=today - timedelta(days=3), end=today + timedelta(days=14)))
+            step("schedule", lambda: sync_games(provider, sport, counts, start=today - timedelta(days=back), end=today + timedelta(days=ahead)))
         step("stats", lambda: sync_stats(provider, sport, counts))
         step("corrections", lambda: sync_corrections(provider, sport, counts))
         step("scores", lambda: (_after_stats(sport, counts), "scores and leagues updated")[1])

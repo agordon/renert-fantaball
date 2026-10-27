@@ -104,6 +104,8 @@ def parse_stat(d: dict) -> StatRecord:
 # ------------------------------------------------------------------ provider
 class BallDontLieProvider(NBADataProvider):
     name = "balldontlie"
+    stats_plan_hint = ("BALLDONTLIE returns HTTP 401 for player stats on the free plan; box scores need the ALL-STAR plan ($9.99/month). "
+                       "Teams, players and schedules still sync.")
 
     def __init__(self, api_key: str | None, *, base_url: str = DEFAULT_BASE_URL, requests_per_minute: float = 5.0, client: HttpClient | None = None, **client_opts):
         if not api_key and client is None:

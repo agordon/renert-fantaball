@@ -15,27 +15,32 @@ npm run test       # backend tests + frontend build
 (`pnpm dev` etc. work the same.) Always use **http://localhost:3000**; port 5010 is only the API.
 The database is migrated automatically on every start (see *Database*).
 
-## Real NBA data (BALLDONTLIE)
+## Real NBA data (Highlightly, free plan)
 
-Provider facts below were checked against https://docs.balldontlie.io/ and the OpenAPI spec on 2026-10-27.
+Provider facts were read from https://highlightly.net/nba-api/documentation/ (and its OpenAPI spec) on 2026-10-27, and the base URL /
+header behaviour was confirmed against the live service (no header -> HTTP 403; invalid key -> HTTP 401).
 
-| | Free | ALL-STAR ($9.99/mo) | GOAT ($39.99/mo) |
-|---|---|---|---|
-| Teams, players, games (schedule + scores) | yes | yes | yes |
-| **Game player stats (box scores)** | **no (HTTP 401)** | yes | yes |
-| Season averages, box scores v2, standings, odds ... | no | no | yes |
-| Rate limit | 5 requests/min | 60/min | 600/min |
-
-Auth is the `Authorization` header; pagination is cursor-based (`per_page` max 100). History goes back to 1946.
-**Fantasy points from real box scores need at least the ALL-STAR plan.** On the free plan, teams/players/schedules import
-fine and the app says clearly that statistics are unavailable; nothing is invented. No subscription is bought by this project.
+* **Free plan, no credit card:** 100 requests per day; player stats and box scores are included (highlights and odds are not).
+* **Terms** (https://highlightly.net/terms/): storing the data and using it in your own app is allowed; cash-prize fantasy sports and
+  betting are excluded (FantaBall has neither); do not circumvent rate limits or resell API access.
+* Auth: header `x-rapidapi-key` to `https://nba.highlightly.net`. The response header `x-ratelimit-requests-remaining` is read, and
+  the app stops before the quota is gone.
+* `/players` lists only id + name, so **players are discovered from box scores** (a player appears once he has played) and their
+  position comes from the match lineup. The player pool therefore grows during the season.
 
 **One-time setup**
-1. Create an account at https://www.balldontlie.io/ and copy your key.
-2. Put it in `.env` (git-ignored): `BALLDONTLIE_API_KEY=your_key` (`.env.development.example` shows the settings; placeholders only).
-3. Restart the backend, then import: `npm run sync` (teams + players, full-season schedule, every available box score).
-   The free rate limit (5/min) makes the first import take several minutes.
-4. Open **Data Admin** (listed in `FLASK_ADMIN_EMAILS`) to see status, freshness, failures and to run jobs by hand.
+1. Create a free account at https://highlightly.net/ (dashboard -> API key).
+2. Put the key in `.env` (git-ignored): `HIGHLIGHTLY_API_KEY=your_key` (see `.env.development.example`; placeholders only).
+3. `npm run dev`, then in another terminal `npm run sync` (teams, whole-season schedule, then box scores of finished games).
+   Each game costs about 1-2 requests, so the first import of a season already underway can take **a day or two**: it stops
+   cleanly when today's budget is used up, and the next run continues where it stopped (**Data Admin** shows "requests today").
+4. **Data Admin** (emails in `FLASK_ADMIN_EMAILS`) shows status, freshness, failures and has buttons for every job.
+
+**Request budget** (daily job, ~10 games/day): ~9 date queries (yesterday to next week) + ~10 box scores + a few lineups +
+~10 for the one-day corrections re-check = ~30-40 of the 100. Mondays add ~13 for a full-season refresh. If the provider also lists
+preseason games, set `FLASK_NBA_SEASON_START=YYYY-MM-DD` (the Monday of regular-season week 1) before the first sync.
+
+**Alternative provider:** `FLASK_NBA_PROVIDER=balldontlie` (needs `BALLDONTLIE_API_KEY`; its free plan has no player stats).
 
 **Commands** (`npm run nba -- <cmd>` or `python -m flask --app app nba <cmd>`; all are safe to repeat)
 
@@ -65,7 +70,7 @@ provider, so duplicate schedulers or several workers can never run the same job 
 
 ## How real data becomes fantasy points
 
-1. `fantaball/nba/balldontlie.py` fetches and parses (pure `parse_*` functions); `http.py` handles timeouts/retries/rate limit.
+1. `fantaball/nba/highlightly.py` (or `balldontlie.py`) fetches and parses (pure `parse_*` functions); `http.py` handles timeouts, retries, pacing and the daily budget.
 2. `fantaball/nba/ingest.py` upserts teams, players, games, `game_stats` by the provider's ids (idempotent), per-batch commits.
    Unreported stats stay `NULL` - never 0. Players without a known position are stored but not draftable.
 3. `fantaball/scoring.py::score_decimal` (exact `Decimal`, weights may be negative/fractional) turns a stat line into points;
@@ -104,7 +109,7 @@ New migration: edit models, then `FLASK_SKIP_DB_INIT=true python -m flask --app 
 | Topic | File |
 |---|---|
 | Exact scoring, rule-set hashing | `fantaball/scoring.py`, `fantaball/rulesets.py` |
-| Provider interface, BALLDONTLIE client, retries | `fantaball/nba/provider.py`, `balldontlie.py`, `http.py` |
+| Provider interface, Highlightly / BALLDONTLIE clients, retries | `fantaball/nba/provider.py`, `highlightly.py`, `balldontlie.py`, `http.py` |
 | Ingestion (upserts, run tracking, daily job) | `fantaball/nba/ingest.py` |
 | Fantasy score persistence / league progression | `fantaball/nba/scoring_service.py`, `league_sync.py` |
 | Matchup totals / corrections | `fantaball/league_scoring.py` |
@@ -116,11 +121,11 @@ New migration: edit models, then `FLASK_SKIP_DB_INIT=true python -m flask --app 
 
 ## Tests
 
-`npm run test`, or `python -m pytest tests -q` (70 tests, temp database, **no network**: the real provider is exercised with a
+`npm run test`, or `python -m pytest tests -q` (89 tests, temp database, **no network**: the real provider is exercised with a
 fake HTTP opener, the pipeline with the offline fixture provider) and `cd frontend && npx tsc --noEmit && npx eslint src && npx next build`.
 Covered: provider parsing, pagination, retries/401/403/429/5xx, upserts, duplicate prevention, failure recovery, plan limits,
 corrections, exact scoring, rule changes, ownership, authorization, lineup/matchup/team totals, migrations of a legacy database.
-The real provider itself has been verified only up to the unauthenticated request (the live API answers HTTP 401 without a key).
+The live provider has been verified only up to the unauthenticated request (HTTP 403/401 as documented); real box scores have not been fetched yet.
 
 ## Adding NHL / NFL
 

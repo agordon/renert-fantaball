@@ -62,7 +62,7 @@ export default function LeaguesPage() {
           {sports && !choices.length ? (
             <div className="space-y-2 text-sm text-ink2">
               <p className="font-medium text-ink">There is no player data to build a league on yet.</p>
-              <p>An administrator must import real NBA data first: set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code>, or use the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page.</p>
+              <p>An administrator must import real NBA data first: set your data-provider API key in <code>.env</code> and run <code>npm run sync</code>, or use the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page.</p>
             </div>
           ) : (
           <form onSubmit={submitCreate} className="space-y-4">

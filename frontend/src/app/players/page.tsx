@@ -31,7 +31,7 @@ function SportScope() {
         <PageHeader title="Players" />
         <Card><div className="space-y-2 text-sm text-ink2">
           <p className="font-medium text-ink">No player data has been imported yet.</p>
-          <p>An administrator needs to set <code>BALLDONTLIE_API_KEY</code> in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page).</p>
+          <p>An administrator needs to set your data-provider API key in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page).</p>
         </div></Card>
       </>
     );
