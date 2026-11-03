@@ -31,7 +31,7 @@ function SportScope() {
         <PageHeader title="Players" />
         <Card><div className="space-y-2 text-sm text-ink2">
           <p className="font-medium text-ink">No player data has been imported yet.</p>
-          <p>An administrator needs to set your data-provider API key in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page).</p>
+          <p>An administrator needs to set your data-provider API key in <code>.env</code> and run <code>npm run sync</code> (or use the sync controls on the <Link className="text-accent hover:underline" href="/admin">Data Admin</Link> page).</p>
         </div></Card>
       </>
     );
@@ -62,11 +62,12 @@ function Inner({ sport, sportChoices, onSport }: { sport?: string; sportChoices?
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   const labels: Record<string, string> = data?.stat_labels ?? {};
+  const hasAge = (data?.players ?? []).some((p: Player) => p.age != null);      // some providers (Highlightly) do not supply ages
   const statCols = Object.keys(labels).filter((k) => k !== "min").slice(0, 7);
   const toggleSort = (k: string) => { if (sort === k) setDir(dir === "desc" ? "asc" : "desc"); else { setSort(k); setDir(k === "rank" || k === "name" ? "asc" : "desc"); } setPage(0); };
   const Th = ({ k, children, left }: { k: string; children: React.ReactNode; left?: boolean }) => (
     <th scope="col" aria-sort={sort === k ? (dir === "desc" ? "descending" : "ascending") : "none"} className={cn("whitespace-nowrap p-2 font-medium", left ? "text-left" : "text-right")}>
-      <button onClick={() => toggleSort(k)} className={cn("inline-flex items-center gap-0.5 hover:text-ink", sort === k && "text-teal")}>{children}{sort === k && (dir === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />)}</button>
+      <button onClick={() => toggleSort(k)} className={cn("inline-flex items-center gap-0.5 hover:text-ink", sort === k && "text-accent")}>{children}{sort === k && (dir === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />)}</button>
     </th>
   );
 
@@ -90,7 +91,7 @@ function Inner({ sport, sportChoices, onSport }: { sport?: string; sportChoices?
             <table className="w-full min-w-[920px] text-sm">
               <thead className="text-[11px] uppercase tracking-wider text-ink3"><tr className="border-b border-line">
                 <th className="w-8 p-2"><span className="sr-only">Compare</span></th>
-                <Th k="name" left>Player</Th><Th k="age">Age</Th>
+                <Th k="name" left>Player</Th>{hasAge && <Th k="age">Age</Th>}
                 <Th k="games_week">G/wk</Th><Th k="gp">GP</Th><Th k="fpg">FP/G</Th><Th k="last5">L5</Th><Th k="proj">Proj</Th>
                 {statCols.map((k) => <Th key={k} k={`avg.${k}`}>{labels[k]}</Th>)}
                 <th className="p-2 text-right font-medium">Trend</th><th className="p-2 text-left font-medium">Owner</th><th className="w-10" />
@@ -99,15 +100,15 @@ function Inner({ sport, sportChoices, onSport }: { sport?: string; sportChoices?
                 {data?.players.map((p: Player) => (
                   <tr key={p.id} className="border-b border-line/60 hover:bg-panel2/60">
                     <td className="p-2"><input type="checkbox" aria-label={`Compare ${p.name}`} checked={picked.includes(p.id)} disabled={!picked.includes(p.id) && picked.length >= 4}
-                      onChange={(e) => setPicked(e.target.checked ? [...picked, p.id] : picked.filter((x) => x !== p.id))} className="accent-teal" /></td>
-                    <td className="p-2"><button className="text-left font-medium hover:text-teal" onClick={() => setProfile(p.id)}>{p.name}</button>
+                      onChange={(e) => setPicked(e.target.checked ? [...picked, p.id] : picked.filter((x) => x !== p.id))} className="accent-accent" /></td>
+                    <td className="p-2"><button className="text-left font-medium hover:text-accent" onClick={() => setProfile(p.id)}>{p.name}</button>
                       <div className="flex items-center text-[11px] text-ink3"><PosBadge positions={p.positions} /><span className="mx-1">·</span>{p.team}<InjuryBadge status={p.injury} /></div></td>
-                    <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td>
+                    {hasAge && <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td>}
                     <td className="num p-2 text-right text-ink2">{p.games_week}</td>
                     <td className="num p-2 text-right text-ink2">{p.gp}</td>
                     <td className="num p-2 text-right">{fmt(p.fpg)}</td>
                     <td className="num p-2 text-right">{fmt(p.last5)}</td>
-                    <td className="num p-2 text-right font-semibold text-teal">{p.proj.toFixed(1)}</td>
+                    <td className="num p-2 text-right font-semibold text-accent">{p.proj.toFixed(1)}</td>
                     {statCols.map((k) => <td key={k} className="num p-2 text-right text-ink2">{p.avg[k]?.toFixed(1) ?? "-"}</td>)}
                     <td className="p-2 text-right"><Sparkline values={p.recent} /></td>
                     <td className="p-2 text-xs">{!league ? <span className="text-ink3">-</span> : p.owner_team ? <span className="text-ink2">{p.owner_team}</span> : <Badge tone="good">FA</Badge>}</td>
@@ -147,7 +148,7 @@ function CompareModal({ ids, onClose, labels }: { ids: number[] | null; onClose:
           <thead><tr className="border-b border-line"><th className="p-2 text-left text-xs text-ink3">Stat</th>{players.map((p) => <th key={p.id} className="p-2 text-right"><div className="font-semibold">{p.name}</div><div className="text-[11px] font-normal text-ink3">{p.positions.replace(",", "/")} · {p.team}</div></th>)}</tr></thead>
           <tbody>{rows.map(([label, f, d]) => {
             const vals = players.map(f); const best = label.startsWith("TO") ? Math.min(...vals) : Math.max(...vals);
-            return <tr key={label} className="border-b border-line/50"><td className="p-2 text-ink2">{label}</td>{vals.map((v, i) => <td key={i} className={cn("num p-2 text-right", v === best && "font-semibold text-teal")}>{v.toFixed(d)}</td>)}</tr>;
+            return <tr key={label} className="border-b border-line/50"><td className="p-2 text-ink2">{label}</td>{vals.map((v, i) => <td key={i} className={cn("num p-2 text-right", v === best && "font-semibold text-accent")}>{v.toFixed(d)}</td>)}</tr>;
           })}</tbody>
         </table>
       )}

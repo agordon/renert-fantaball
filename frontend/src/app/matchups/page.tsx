@@ -2,7 +2,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useApp, useLeagueData } from "@/lib/league-context";
-import { Badge, Button, Card, ErrorBox, PageHeader, DataBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { ScoredThrough } from "@/components/scored-through";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Matchup Center" sub={<>Week {w} of {data.total_weeks} <DataBadge /></>} action={<ScoredThrough />} />
+      <PageHeader title="Matchup Center" sub={<>Week {w} of {data.total_weeks}</>} action={<ScoredThrough />} />
       <div className="mb-4 flex items-center gap-2">
         <Button size="sm" disabled={w <= 1} onClick={() => setWeek(w - 1)} aria-label="Previous week"><ChevronLeft className="h-4 w-4" /></Button>
         <span className="num text-sm">Week {w}</span>
@@ -42,14 +42,14 @@ function Inner() {
 
       <Card>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <Side name={me.name} manager={me.manager} points={me.points} proj={me.projected} color="text-teal" />
-          <div className="text-center"><div className="text-xs text-ink3">{m.final ? "Final" : "Margin"}</div><div className={cn("num text-lg font-semibold", lead > 0 ? "text-good" : lead < 0 ? "text-bad" : "")}>{lead > 0 ? "+" : ""}{lead.toFixed(1)}</div></div>
+          <Side name={me.name} manager={me.manager} points={me.points} proj={me.projected} color="text-accent" />
+          <div className="text-center"><div className="text-xs text-ink3">{m.final ? "Final" : "Margin"}</div><div className={cn("big-num text-3xl font-semibold", lead > 0 ? "text-good" : lead < 0 ? "text-bad" : "")}>{lead > 0 ? "+" : ""}{lead.toFixed(1)}</div></div>
           <Side name={opp.name} manager={opp.manager} points={opp.points} proj={opp.projected} color="text-amber" right />
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-xs"><thead className="text-ink3"><tr><th className="p-1.5 text-left">Daily scoring</th>{days.map((d) => <th key={d} className="p-1.5 text-right">D{d}</th>)}<th className="p-1.5 text-right">Total</th></tr></thead>
             <tbody>
-              {[["You", me, "text-teal"], ["Opp", opp, "text-amber"]].map(([l, s, c]: any) => (
+              {[["You", me, "text-accent"], ["Opp", opp, "text-amber"]].map(([l, s, c]: any) => (
                 <tr key={l} className="border-t border-line"><td className={cn("p-1.5 font-medium", c)}>{s.name}</td>{days.map((d) => <td key={d} className="num p-1.5 text-right text-ink2">{d > m.current_day ? "·" : (s.daily_totals[d] ?? 0).toFixed(0)}</td>)}<td className="num p-1.5 text-right font-semibold">{s.points.toFixed(1)}</td></tr>))}
             </tbody></table>
         </div>
@@ -63,7 +63,7 @@ function Inner() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card title={`Week ${w} around the league`}>
           <ul className="space-y-1 text-sm">{all?.matchups.map((x: any) => (
-            <li key={x.id} className={cn("flex items-center justify-between rounded px-2 py-1", x.mine && "bg-teal/10")}>
+            <li key={x.id} className={cn("flex items-center justify-between rounded px-2 py-1", x.mine && "bg-accent/10")}>
               <span className="truncate">{x.home}</span><span className="num mx-2 shrink-0 text-ink2">{x.home_score.toFixed(0)} - {x.away_score.toFixed(0)}</span><span className="truncate text-right">{x.away}</span></li>))}</ul>
         </Card>
         <Card title="Your results this season">
@@ -80,7 +80,7 @@ function Inner() {
 
 function Side({ name, manager, points, proj, color, right }: { name: string; manager: string; points: number; proj: number; color: string; right?: boolean }) {
   return <div className={right ? "text-right" : ""}><div className="font-medium">{name}</div><div className="text-xs text-ink3">{manager}</div>
-    <div className={cn("num text-4xl font-semibold", color)}>{points.toFixed(1)}</div><div className="text-xs text-ink3">Projected final <span className="num text-ink2">{proj.toFixed(0)}</span></div></div>;
+    <div className={cn("big-num text-[56px] font-semibold leading-none", color)}>{points.toFixed(1)}</div><div className="text-xs text-ink3">Projected final <span className="num text-ink2">{proj.toFixed(0)}</span></div></div>;
 }
 
 function Roster({ title, team, days, cur }: { title: string; team: any; days: number[]; cur: number }) {

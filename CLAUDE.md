@@ -27,6 +27,8 @@ Real NBA data (Highlightly; BALLDONTLIE alternative) -> `fantaball/nba/*` ingest
 - Ingestion must stay idempotent (upsert by provider id) and tracked in `data_sync_runs` (one running job per provider).
 - Tests: use the `world` / `nba_data` fixtures (they wipe and refill the `nba` rows) and `FLASK_FAKE_TODAY`; helpers in
   `tests/helpers.py`; test clients push a fresh app context per request (see `tests/conftest.py`).
+- UI colours: never hard-code hex in components or charts - use the theme tokens / CSS variables (`bg-panel`, `text-ink`, `text-accent`, `var(--accent)`).
+  Themes and appearance options are defined once in `frontend/src/lib/themes.ts`. Keep the look plain and editorial (ruled boxes, condensed headings, few badges).
 - Next.js is v16 (see `frontend/AGENTS.md`); client-rendered, Cache Components off. Typed API shapes: `src/lib/api-types.ts`, `client.ts`.
 - Windows: SQLAlchemy's compiled `.pyd` files may be blocked by Application Control - delete them (README troubleshooting).
 - Never push to GitHub without the user's approval (origin is the teacher's repo, `agordon/renert-fantaball`).

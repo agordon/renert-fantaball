@@ -4,7 +4,7 @@ import { CartesianGrid, ReferenceLine, ResponsiveContainer, Scatter, ScatterChar
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { api } from "@/lib/api";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, ErrorBox, PageHeader, Select, DataBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, Select, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { WeeklyChart } from "@/components/charts";
 
@@ -28,7 +28,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Analytics" sub={<>League and roster analysis <DataBadge /></>} />
+      <PageHeader title="Analytics" sub={<>League and roster analysis</>} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Weekly scoring trends"><WeeklyChart data={st.data} /></Card>
         <Card title="Points for vs points against">
@@ -36,29 +36,29 @@ function Inner() {
             <div className="h-72" role="img" aria-label="Scatter plot of points for versus points against for each team">
               <ResponsiveContainer>
                 <ScatterChart margin={{ left: -5, right: 12, top: 8 }}>
-                  <CartesianGrid stroke="#252d38" />
-                  <XAxis type="number" dataKey="pf" name="Points for" stroke="#7b8694" fontSize={11} domain={["dataMin - 100", "dataMax + 100"]} tickLine={false} />
-                  <YAxis type="number" dataKey="pa" name="Points against" stroke="#7b8694" fontSize={11} domain={["dataMin - 100", "dataMax + 100"]} tickLine={false} />
+                  <CartesianGrid stroke="var(--line)" />
+                  <XAxis type="number" dataKey="pf" name="Points for" stroke="var(--ink-3)" fontSize={11} domain={["dataMin - 100", "dataMax + 100"]} tickLine={false} />
+                  <YAxis type="number" dataKey="pa" name="Points against" stroke="var(--ink-3)" fontSize={11} domain={["dataMin - 100", "dataMax + 100"]} tickLine={false} />
                   <ZAxis range={[70, 70]} />
-                  <ReferenceLine x={avgPf} stroke="#5b6675" strokeDasharray="4 4" /><ReferenceLine y={avgPa} stroke="#5b6675" strokeDasharray="4 4" />
-                  <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "#1a2028", border: "1px solid #252d38", borderRadius: 6, fontSize: 12 }} formatter={(v: any) => Number(v).toFixed(0)} labelFormatter={() => ""} />
-                  <Scatter data={pts.filter((p) => !p.me)} fill="#7b8694" stroke="#141920" strokeWidth={2} />
-                  <Scatter data={pts.filter((p) => p.me)} fill="#2dd4bf" stroke="#141920" strokeWidth={2} />
+                  <ReferenceLine x={avgPf} stroke="var(--ink-3)" strokeDasharray="4 4" /><ReferenceLine y={avgPa} stroke="var(--ink-3)" strokeDasharray="4 4" />
+                  <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 3, fontSize: 12 }} formatter={(v: any) => Number(v).toFixed(0)} labelFormatter={() => ""} />
+                  <Scatter data={pts.filter((p) => !p.me)} fill="var(--ink-3)" stroke="var(--panel)" strokeWidth={2} />
+                  <Scatter data={pts.filter((p) => p.me)} fill="var(--accent)" stroke="var(--panel)" strokeWidth={2} />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-[11px] text-ink3">Top-left of the dashed lines: scoring more than average while allowing less. Your team is teal.</p></> : <p className="py-10 text-center text-sm text-ink3">Available after the first completed week.</p>}
+            <p className="text-[11px] text-ink3">Top-left of the dashed lines: scoring more than average while allowing less. Your team is shown in the accent colour.</p></> : <p className="py-10 text-center text-sm text-ink3">Available after the first completed week.</p>}
         </Card>
       </div>
       {gm && (
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <Card title="Fantasy GM report" action={<Badge tone="blue">Rule-based</Badge>}>
+          <Card title="Fantasy GM report">
             <p className="text-sm text-ink2">{gm.summary}</p>
             <p className="mt-2 text-xs text-ink3">{gm.method}</p>
           </Card>
           <Card title="Schedule optimizer: games left this week">
             <div className="space-y-1 text-sm">{gm.schedule.map((s: any) => (
-              <div key={s.athlete_id} className="flex items-center gap-2"><span className="w-40 truncate">{s.name}</span><div className="flex gap-0.5">{Array.from({ length: Math.max(s.games_left, 0) }).map((_, i) => <span key={i} className="h-2.5 w-4 rounded-sm bg-teal" />)}{s.games_left === 0 && <span className="text-xs text-bad">no games</span>}</div></div>))}</div>
+              <div key={s.athlete_id} className="flex items-center gap-2"><span className="w-40 truncate">{s.name}</span><div className="flex gap-0.5">{Array.from({ length: Math.max(s.games_left, 0) }).map((_, i) => <span key={i} className="h-2.5 w-4 rounded-sm bg-accent" />)}{s.games_left === 0 && <span className="text-xs text-bad">no games</span>}</div></div>))}</div>
           </Card>
         </div>)}
       <WhatIf />

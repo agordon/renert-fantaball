@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useApiData, useApp } from "@/lib/league-context";
 import type { DataStatus } from "@/lib/api-types";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, Empty, ErrorBox, Input, PageHeader, Select, DataBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Input, PageHeader, Select, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ export default function DraftPage() {
   return <NeedLeague><Inner /></NeedLeague>;
 }
 
-const POS_COLOR: Record<string, string> = { PG: "bg-blue/20 border-blue/40", SG: "bg-teal/20 border-teal/40", SF: "bg-amber/20 border-amber/40", PF: "bg-[#a78bfa33] border-[#a78bfa66]", C: "bg-bad/20 border-bad/40" };
+const POS_COLOR: Record<string, string> = { PG: "bg-blue/20 border-blue/40", SG: "bg-accent/20 border-accent/40", SF: "bg-amber/20 border-amber/40", PF: "bg-violet/20 border-violet/40", C: "bg-bad/20 border-bad/40" };
 
 function Inner() {
   const { league, reload } = useApp();
@@ -110,7 +110,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Draft Room" sub={<>{league!.name} · snake draft <DataBadge /></>}
+      <PageHeader title="Draft Room" sub={<>{league!.name} · snake draft</>}
         action={live && st.is_commissioner ? <div className="flex gap-2">
           <Button size="sm" onClick={() => simAll(false)} disabled={act.busy || myTurn}><FastForward className="h-3.5 w-3.5" />Sim to my pick</Button>
           <Button size="sm" onClick={() => confirm("Auto-draft every remaining pick, including yours?") && simAll(true)} disabled={act.busy}><Bot className="h-3.5 w-3.5" />Auto-draft the rest</Button></div> : undefined} />
@@ -119,13 +119,13 @@ function Inner() {
         <div role="note" className="mb-3 rounded-md border border-amber/40 bg-amber/10 p-3 text-sm text-amber">No player statistics have been imported yet, so rankings and projections are placeholders (alphabetical). {dataStatus.limitations[0] ?? "Import box scores from the Data Admin page for meaningful values."}</div>
       )}
 
-      <div className={cn("mb-4 flex flex-wrap items-center gap-4 rounded-lg border p-4", myTurn ? "border-teal/60 bg-teal/10" : "border-line bg-panel")}>
+      <div className={cn("mb-4 flex flex-wrap items-center gap-4 rounded-lg border p-4", myTurn ? "border-accent/60 bg-accent/10" : "border-line bg-panel")}>
         {live ? <>
-          <Gavel className={cn("h-5 w-5", myTurn ? "text-teal" : "text-ink3")} />
+          <Gavel className={cn("h-5 w-5", myTurn ? "text-accent" : "text-ink3")} />
           <div><div className="text-xs text-ink3">Pick {session.current_pick} of {session.total_picks} · Round {session.current_round}</div>
             <div className="font-medium">{myTurn ? "You are on the clock" : `${onClock?.name ?? ""} ${onClock?.is_bot ? "(computer) is picking…" : "is on the clock"}`}</div></div>
           <div className="ml-auto flex items-center gap-2"><Clock className="h-4 w-4 text-ink3" /><span className={cn("num text-2xl font-semibold", (secs ?? 99) <= 10 && myTurn && "text-bad")} aria-live="off">{secs ?? "-"}s</span></div>
-        </> : <><Sparkles className="h-5 w-5 text-teal" /><div className="font-medium">Draft complete - {session.total_picks} picks made</div><Link href="/team" className="ml-auto"><Button variant="primary">View my team</Button></Link></>}
+        </> : <><Sparkles className="h-5 w-5 text-accent" /><div className="font-medium">Draft complete - {session.total_picks} picks made</div><Link href="/team" className="ml-auto"><Button variant="primary">View my team</Button></Link></>}
       </div>
 
       <div className="grid gap-4 2xl:grid-cols-[1fr_380px]">
@@ -133,12 +133,12 @@ function Inner() {
           <Card title="Draft board" pad={false}>
             <div className="max-h-80 overflow-auto">
               <table className="w-full min-w-[760px] border-separate border-spacing-0.5 text-[11px]">
-                <thead className="sticky top-0 z-10 bg-panel"><tr><th className="w-8" />{cols.map((t: any) => <th key={t.id} className={cn("truncate px-1 py-1 text-left font-medium", t.is_me ? "text-teal" : "text-ink3")}>{t.name}</th>)}</tr></thead>
+                <thead className="sticky top-0 z-10 bg-panel"><tr><th className="w-8" />{cols.map((t: any) => <th key={t.id} className={cn("truncate px-1 py-1 text-left font-medium", t.is_me ? "text-accent" : "text-ink3")}>{t.name}</th>)}</tr></thead>
                 <tbody>{rounds.map((r) => (
                   <tr key={r}><td className="num text-center text-ink3">{r}</td>
                     {cols.map((t: any) => {
                       const ov = overallFor(r, t.draft_slot); const p = pickAt.get(ov); const cur = live && ov === session.current_pick;
-                      return <td key={t.id} className={cn("h-9 rounded border px-1 align-top", p ? POS_COLOR[p.athlete.positions.split(",")[0]] : "border-line/60", cur && "animate-pulse !border-teal ring-1 ring-teal")}>
+                      return <td key={t.id} className={cn("h-9 rounded border px-1 align-top", p ? POS_COLOR[p.athlete.positions.split(",")[0]] : "border-line/60", cur && "animate-pulse !border-accent ring-1 ring-accent")}>
                         {p ? <><div className="truncate font-medium leading-tight">{p.athlete.name}</div><div className="text-[10px] text-ink3">{p.athlete.positions.replace(",", "/")} · {p.athlete.team}{p.auto ? " · auto" : ""}</div></> : <span className="num text-ink3">{ov}</span>}</td>;
                     })}</tr>))}</tbody>
               </table>
@@ -157,7 +157,7 @@ function Inner() {
                     <tr key={p.id} onClick={() => setPicked(p.id)} className={cn("cursor-pointer border-t border-line/60 hover:bg-panel2/60", picked === p.id && "bg-blue/15")}>
                       <td className="num p-2 text-ink3">{p.rank}</td>
                       <td className="p-2"><span className="font-medium">{p.name}</span><div className="text-[11px] text-ink3">{p.positions.replace(",", "/")} · {p.team}{p.injury !== "HEALTHY" && <Badge tone="amber" className="ml-1.5">{p.injury}</Badge>}</div></td>
-                      <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td><td className="num p-2 text-right font-semibold text-teal">{p.proj.toFixed(1)}</td>
+                      <td className="num p-2 text-right text-ink2">{p.age ?? "-"}</td><td className="num p-2 text-right font-semibold text-accent">{p.proj.toFixed(1)}</td>
                       <td className="p-2 text-right"><div className="flex justify-end gap-1">
                         <Button size="sm" aria-label={`Queue ${p.name}`} onClick={(e) => { e.stopPropagation(); if (!queue.includes(p.id)) saveQueue([...queue, p.id]); }}><ListPlus className="h-3 w-3" /></Button>
                         <Button size="sm" variant="primary" disabled={!myTurn || act.busy} onClick={(e) => { e.stopPropagation(); doPick(p.id); }}>Draft</Button></div></td>
@@ -171,7 +171,7 @@ function Inner() {
         <div className="space-y-4">
           {live && picked && byId.get(picked) && !drafted.has(picked) && (
             <Card title="Selected player"><div className="flex items-start justify-between"><div><div className="font-medium">{byId.get(picked).name}</div><div className="text-xs text-ink3">{byId.get(picked).positions.replace(",", "/")} · {byId.get(picked).team} · age {byId.get(picked).age ?? "-"} · rank #{byId.get(picked).rank}</div>
-              <div className="mt-1 text-sm">Projected <b className="num text-teal">{byId.get(picked).proj.toFixed(1)}</b> FP/G</div></div>
+              <div className="mt-1 text-sm">Projected <b className="num text-accent">{byId.get(picked).proj.toFixed(1)}</b> FP/G</div></div>
               <Button variant="primary" disabled={!myTurn || act.busy} onClick={() => doPick(picked)}>Draft</Button></div></Card>
           )}
           {live && <AssistantPanel a={assist} myTurn={myTurn} onPick={doPick} busy={act.busy} />}
@@ -200,9 +200,9 @@ function StartForm({ onStart, busy }: { onStart: (secs: number) => void; busy: b
 }
 
 function AssistantPanel({ a, myTurn, onPick, busy }: { a: any; myTurn: boolean; onPick: (id: number) => void; busy: boolean }) {
-  if (!a) return <Card title="Draft strategy assistant" action={<Badge tone="blue">Explainable</Badge>}><p className="text-xs text-ink3">Recommendations appear when you are on the clock.</p></Card>;
+  if (!a) return <Card title="Draft strategy assistant"><p className="text-xs text-ink3">Recommendations appear when you are on the clock.</p></Card>;
   return (
-    <Card title="Draft strategy assistant" action={<Badge tone="blue">Explainable</Badge>}>
+    <Card title="Draft strategy assistant">
       <div className="space-y-3">
         <div>
           <div className="mb-1 text-[11px] uppercase tracking-wider text-ink3">Best available for you</div>

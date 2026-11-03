@@ -43,7 +43,7 @@ export default function LeaguesPage() {
       <PageHeader title="My Leagues" sub="Create a league, or join one with an invitation code." />
       <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {leagues.map((l) => (
-          <button key={l.id} onClick={() => { setLeagueId(l.id); router.push("/"); }} className={`rounded-lg border bg-panel p-4 text-left transition-colors hover:bg-panel2 ${l.id === league?.id ? "border-teal/60" : "border-line"}`}>
+          <button key={l.id} onClick={() => { setLeagueId(l.id); router.push("/"); }} className={`rounded-lg border bg-panel p-4 text-left transition-colors hover:bg-panel2 ${l.id === league?.id ? "border-accent/60" : "border-line"}`}>
             <div className="flex items-start justify-between gap-2"><div className="font-medium">{l.name}</div>{l.id === league?.id && <Badge tone="teal">Selected</Badge>}</div>
             <div className="mt-1 text-xs text-ink3">{l.sport_name} · {l.num_teams} teams · Head-to-head points</div>
             <div className="mt-1"><Badge tone="teal">Real NBA data</Badge></div>
@@ -62,7 +62,7 @@ export default function LeaguesPage() {
           {sports && !choices.length ? (
             <div className="space-y-2 text-sm text-ink2">
               <p className="font-medium text-ink">There is no player data to build a league on yet.</p>
-              <p>An administrator must import real NBA data first: set your data-provider API key in <code>.env</code> and run <code>npm run sync</code>, or use the <Link className="text-teal hover:underline" href="/admin">Data Admin</Link> page.</p>
+              <p>An administrator must import real NBA data first: set your data-provider API key in <code>.env</code> and run <code>npm run sync</code>, or use the <Link className="text-accent hover:underline" href="/admin">Data Admin</Link> page.</p>
             </div>
           ) : (
           <form onSubmit={submitCreate} className="space-y-4">

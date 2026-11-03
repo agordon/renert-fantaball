@@ -110,6 +110,14 @@ New migration: edit models, then `FLASK_SKIP_DB_INIT=true python -m flask --app 
 | DataSyncRun | `data_sync_runs` |
 | Draft, trades, waivers (schema), activity | `draft_*`, `trade_*`, `waiver_claims`, `league_activity` |
 
+## Appearance
+
+Settings -> Appearance (also a quick Theme menu in the sidebar): 10 themes (Hardwood - the default, Midnight, Newsprint, Daylight, Terminal, Ocean,
+Sunset, Forest, Royal, High contrast) plus "match my device", a custom accent colour, square / standard / round corners, comfortable / compact
+density and condensed / serif / plain headings. Choices are saved in the browser and applied before first paint (no flash).
+All themes live in `frontend/src/lib/themes.ts` (one list of CSS variables - add a theme by adding an entry); components only use the
+theme tokens (`bg-panel`, `text-ink`, `text-accent` ...), never hard-coded colours.
+
 ## Where the algorithms are (for study)
 
 | Topic | File |

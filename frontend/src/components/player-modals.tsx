@@ -9,7 +9,7 @@ import type { Player } from "@/lib/types";
 import type { GameLogEntry, RuleSetInfo } from "@/lib/api-types";
 import { Badge, Button, InjuryBadge, Modal, PosBadge, DataBadge, Select, Spinner } from "@/components/ui";
 
-const tip = { background: "#1a2028", border: "1px solid #252d38", borderRadius: 6, fontSize: 12 };
+const tip = { background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 3, fontSize: 12 };
 
 interface Profile {
   player: Player;
@@ -72,12 +72,12 @@ export function PlayerProfile({ id, onClose, sport }: { id: number | null; onClo
             <div className="h-40" role="img" aria-label="Fantasy points per game">
               <ResponsiveContainer>
                 <AreaChart data={[...scored].reverse()} margin={{ left: -15, right: 4 }}>
-                  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.35} /><stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid stroke="#252d38" vertical={false} />
-                  <XAxis dataKey="day" stroke="#7b8694" fontSize={11} tickLine={false} tickFormatter={(x) => `D${x}`} />
-                  <YAxis stroke="#7b8694" fontSize={11} tickLine={false} axisLine={false} />
+                  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient></defs>
+                  <CartesianGrid stroke="var(--line)" vertical={false} />
+                  <XAxis dataKey="day" stroke="var(--ink-3)" fontSize={11} tickLine={false} tickFormatter={(x) => `D${x}`} />
+                  <YAxis stroke="var(--ink-3)" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tip} labelFormatter={(x) => `Day ${x}`} formatter={(v) => [Number(v).toFixed(1), "Fantasy pts"]} />
-                  <Area dataKey="fp" stroke="#2dd4bf" strokeWidth={2} fill="url(#g)" />
+                  <Area dataKey="fp" stroke="var(--accent)" strokeWidth={2} fill="url(#g)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -92,7 +92,7 @@ export function PlayerProfile({ id, onClose, sport }: { id: number | null; onClo
                 <tbody>{ok.game_log.map((g) => (
                   <tr key={g.day} className="border-t border-line"><td className="p-1.5">{g.date ? g.date.slice(5) : `D${g.day}`}{g.opponent ? ` ${g.home ? "vs" : "@"} ${g.opponent}` : ""}</td>
                     {Object.keys(labels).map((k) => <td key={k} className="num p-1.5 text-right">{g.stats[k] ?? <span title="not reported by the data provider" className="text-ink3">-</span>}</td>)}
-                    <td className="num p-1.5 text-right font-medium text-teal">{g.fp === null ? <span title="a needed stat was not reported, so this game is not scored" className="text-ink3">n/a</span> : g.fp.toFixed(1)}</td></tr>))}</tbody>
+                    <td className="num p-1.5 text-right font-medium text-accent">{g.fp === null ? <span title="a needed stat was not reported, so this game is not scored" className="text-ink3">n/a</span> : g.fp.toFixed(1)}</td></tr>))}</tbody>
               </table>
             </div>
           )}

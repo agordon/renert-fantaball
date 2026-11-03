@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { useAction } from "@/lib/use-action";
 import { Badge, Button, Card, ErrorBox, Input, PageHeader, Spinner } from "@/components/ui";
+import { AppearancePanel } from "@/components/appearance-panel";
 
  
 export default function SettingsPage() {
@@ -14,7 +15,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = React.useState(false);
   return (
     <>
-      <PageHeader title="Settings" sub="Profile and league configuration" />
+      <PageHeader title="Settings" sub="Appearance, profile and league configuration" />
+      <div className="mb-4"><AppearancePanel /></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Your profile">
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); profile.run(async () => { await api("/me", { method: "PATCH", body: { display_name: name } }); await reload(); setSaved(true); }); }}>
@@ -50,7 +52,7 @@ function LeagueSettings() {
           <label className="block text-xs text-ink3">League name<Input value={leagueName} onChange={(e) => setLeagueName(e.target.value)} disabled={!editable} className="mt-1" /></label>
           <div className="grid grid-cols-2 gap-2 text-ink2"><div>Sport: {data.sport_name}</div><div>Format: Head-to-head points</div><div>Teams: {data.num_teams} ({data.open_seats} open)</div><div>Commissioner: {data.commissioner}</div></div>
           <div className="flex items-center gap-2 rounded-md border border-line bg-panel2 p-2.5"><span className="text-xs text-ink3">Invitation code</span>
-            <code className="num flex-1 text-base tracking-widest text-teal">{data.invite_code}</code>
+            <code className="num flex-1 text-base tracking-widest text-accent">{data.invite_code}</code>
             <Button size="sm" onClick={() => navigator.clipboard?.writeText(data.invite_code)}><Copy className="h-3 w-3" />Copy</Button></div>
           <div><div className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink3">Scoring rules (points per stat)</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Object.entries(data.stat_labels).filter(([k]) => k in rules).map(([k, l]) => (
@@ -67,7 +69,7 @@ function LeagueSettings() {
           <Input aria-label="Team name" value={teamName} onChange={(e) => setTeamName(e.target.value)} minLength={2} maxLength={40} /><Button type="submit" disabled={save.busy}>Rename</Button>
         </form>
         <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wider text-ink3">League members</h3>
-        <ul className="space-y-1 text-sm">{data.teams.map((t: any) => <li key={t.id} className="flex justify-between"><span className={t.is_me ? "text-teal" : ""}>{t.name}</span><span className="text-ink3">{t.manager}{t.is_bot ? " (computer)" : ""}</span></li>)}</ul>
+        <ul className="space-y-1 text-sm">{data.teams.map((t: any) => <li key={t.id} className="flex justify-between"><span className={t.is_me ? "text-accent" : ""}>{t.name}</span><span className="text-ink3">{t.manager}{t.is_bot ? " (computer)" : ""}</span></li>)}</ul>
       </Card>
     </>
   );

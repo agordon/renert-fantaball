@@ -4,7 +4,7 @@ import { ArrowLeftRight, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApp, useLeagueData } from "@/lib/league-context";
 import { useAction } from "@/lib/use-action";
-import { Badge, Button, Card, Empty, ErrorBox, Modal, PageHeader, Segmented, Select, DataBadge, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Modal, PageHeader, Segmented, Select, Spinner } from "@/components/ui";
 import { NeedLeague } from "@/components/shell";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +26,7 @@ function Inner() {
 
   return (
     <>
-      <PageHeader title="Trades" sub={<>Trade machine, offers and history <DataBadge /></>}
+      <PageHeader title="Trades" sub={<>Trade machine, offers and history</>}
         action={<Segmented label="Trades view" value={tab} onChange={setTab} options={[{ value: "machine", label: "Trade machine" }, { value: "offers", label: `Offers${pendingCount ? ` (${pendingCount})` : ""}` }, { value: "history", label: "Completed" }]} />} />
       {act.error && <div className="mb-3"><ErrorBox message={act.error} /></div>}
       {tab === "machine" && <Machine onSent={() => { trades.reload(); }} />}
@@ -108,8 +108,8 @@ function Machine({ onSent }: { onSent: () => void }) {
   const col = (title: string, ps: any[], sel: number[], set: (x: number[]) => void) => (
     <Card title={title} pad={false}>
       <ul className="max-h-80 divide-y divide-line/60 overflow-y-auto">{ps.map((p) => (
-        <li key={p.id}><label className={cn("flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-panel2", sel.includes(p.id) && "bg-teal/10")}>
-          <input type="checkbox" className="accent-teal" checked={sel.includes(p.id)} onChange={() => toggle(sel, set, p.id)} />
+        <li key={p.id}><label className={cn("flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-panel2", sel.includes(p.id) && "bg-accent/10")}>
+          <input type="checkbox" className="accent-accent" checked={sel.includes(p.id)} onChange={() => toggle(sel, set, p.id)} />
           <span className="flex-1">{p.name}<span className="ml-1 text-[11px] text-ink3">{p.positions.replace(",", "/")} · {p.team}</span>{p.injury !== "HEALTHY" && <Badge tone="amber" className="ml-1.5">{p.injury}</Badge>}</span>
           <span className="num text-xs text-ink2">{p.proj.toFixed(1)}</span></label></li>))}</ul>
     </Card>);
@@ -120,13 +120,13 @@ function Machine({ onSent }: { onSent: () => void }) {
         <Select aria-label="Trade partner" value={partner} onChange={(e) => setPartner(e.target.value ? Number(e.target.value) : "")} className="ml-2">
           <option value="">Choose a team…</option>{(info?.teams ?? []).filter((t: any) => !t.is_me).map((t: any) => <option key={t.id} value={t.id}>{t.name}{t.is_bot ? " (computer)" : ` · ${t.manager}`}</option>)}</Select></label>
         <span className="text-xs text-ink3">Select players on both sides (number = projected fantasy points per game).</span></div>
-      {result && <div className={cn("rounded-md border p-3 text-sm", result.ai_response ? (result.ai_response.accepted ? "border-good/40 bg-good/10 text-good" : "border-amber/40 bg-amber/10 text-amber") : "border-teal/40 bg-teal/10 text-teal")}>
+      {result && <div className={cn("rounded-md border p-3 text-sm", result.ai_response ? (result.ai_response.accepted ? "border-good/40 bg-good/10 text-good" : "border-amber/40 bg-amber/10 text-amber") : "border-accent/40 bg-accent/10 text-accent")}>
         {result.ai_response ? (result.ai_response.accepted ? "Trade accepted! Rosters have been updated." : `Declined by the computer manager: ${result.ai_response.reason}`) : "Offer sent. The other manager can accept or decline it."}</div>}
       {act.error && <ErrorBox message={act.error} />}
       <div className="grid gap-4 lg:grid-cols-2">{col("You send", mine, give, setGive)}{partner ? col("You receive", theirs, get, setGet) : <Card title="You receive"><Empty>Choose a trade partner first.</Empty></Card>}</div>
       {analysis && (<>
         <Analysis a={analysis} />
-        <Card><div className="flex flex-wrap items-center gap-2"><input aria-label="Message" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Optional message to the other manager" className="h-9 flex-1 rounded-md border border-line bg-panel2 px-3 text-sm focus:border-teal focus:outline-none" />
+        <Card><div className="flex flex-wrap items-center gap-2"><input aria-label="Message" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="Optional message to the other manager" className="h-9 flex-1 rounded-md border border-line bg-panel2 px-3 text-sm focus:border-accent focus:outline-none" />
           <Button variant="primary" disabled={act.busy} onClick={send}>Send trade proposal</Button></div></Card></>)}
     </div>
   );
@@ -139,7 +139,7 @@ function Delta({ v, unit = "" }: { v: number; unit?: string }) {
 function Analysis({ a }: { a: any }) {
   const sides = [a.team_a, a.team_b];
   return (
-    <Card title="Trade impact simulator" action={<Badge tone="blue">Estimate</Badge>}>
+    <Card title="Trade impact simulator">
       <p className="mb-3 text-sm font-medium">{a.verdict}</p>
       <div className="grid gap-3 md:grid-cols-2">
         {sides.map((s: any) => (
