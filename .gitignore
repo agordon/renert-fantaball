@@ -13,8 +13,41 @@ __pycache__/
 logs/
 run/
 
+<<<<<<< Updated upstream
 # FantaBall
 .venv/
 node_modules/
 frontend/.next/
 .pytest_cache/
+=======
+# ---- Installed packages / build output (never commit these) ----
+# Python
+.venv/
+venv/
+env/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+# Node (any folder, including frontend/)
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+# Local env files (examples ending in .example are still tracked)
+.env
+.env.local
+.env.*.local
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+>>>>>>> Stashed changes
