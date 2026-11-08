@@ -1,0 +1,11 @@
+# systemd one-shot unit that runs the daily NBA sync. Adjust User / WorkingDirectory / paths, then:
+#   sudo cp deploy/fantaball-sync.* /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now fantaball-sync.timer
+[Unit]
+Description=FantaBall daily NBA data sync
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/srv/fantaball
+ExecStart=/srv/fantaball/scripts/daily-sync.sh

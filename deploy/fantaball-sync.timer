@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the FantaBall NBA data sync every day
+
+[Timer]
+# 06:00 server time (after the previous night's games are final) and again at 18:00 to pick up corrections
+OnCalendar=*-*-* 06:00:00
+OnCalendar=*-*-* 18:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
