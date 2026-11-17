@@ -13,13 +13,6 @@ __pycache__/
 logs/
 run/
 
-<<<<<<< Updated upstream
-# FantaBall
-.venv/
-node_modules/
-frontend/.next/
-.pytest_cache/
-=======
 # ---- Installed packages / build output (never commit these) ----
 # Python
 .venv/
@@ -50,4 +43,3 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
->>>>>>> Stashed changes
